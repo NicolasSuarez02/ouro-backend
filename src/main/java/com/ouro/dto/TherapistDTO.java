@@ -27,11 +27,13 @@ public class TherapistDTO {
         
         @Size(min = 3, max = 3, message = "Moneda debe tener 3 caracteres")
         private String priceCurrency;
-        
+
+        private String mpAccessToken;
+
         // Constructors
         public CreateTherapistRequest() {
         }
-        
+
         // Getters and Setters
         public Integer getUserId() {
             return userId;
@@ -80,8 +82,16 @@ public class TherapistDTO {
         public void setPriceCurrency(String priceCurrency) {
             this.priceCurrency = priceCurrency;
         }
+
+        public String getMpAccessToken() {
+            return mpAccessToken;
+        }
+
+        public void setMpAccessToken(String mpAccessToken) {
+            this.mpAccessToken = mpAccessToken;
+        }
     }
-    
+
     // Request DTO para actualizar terapeuta
     public static class UpdateTherapistRequest {
         
@@ -99,11 +109,13 @@ public class TherapistDTO {
         
         @Size(min = 3, max = 3, message = "Moneda debe tener 3 caracteres")
         private String priceCurrency;
-        
+
+        private String mpAccessToken;
+
         // Constructors
         public UpdateTherapistRequest() {
         }
-        
+
         // Getters and Setters
         public String getBio() {
             return bio;
@@ -144,11 +156,19 @@ public class TherapistDTO {
         public void setPriceCurrency(String priceCurrency) {
             this.priceCurrency = priceCurrency;
         }
+
+        public String getMpAccessToken() {
+            return mpAccessToken;
+        }
+
+        public void setMpAccessToken(String mpAccessToken) {
+            this.mpAccessToken = mpAccessToken;
+        }
     }
-    
+
     // Response DTO
     public static class TherapistResponse {
-        
+
         private Integer id;
         private Integer userId;
         private String userEmail;
@@ -162,11 +182,16 @@ public class TherapistDTO {
         private String approvalStatus;
         private String createdAt;
         private String updatedAt;
-        
+        // true si el terapeuta ya configuró su token de MP (no devolvemos el token en claro)
+        private boolean mpTokenConfigurado;
+        // Calificación promedio (1-5), null si no tiene calificaciones aún
+        private Double averageRating;
+        private Integer ratingCount;
+
         // Constructors
         public TherapistResponse() {
         }
-        
+
         public TherapistResponse(Therapist therapist) {
             this.id = therapist.getId();
             this.userId = therapist.getUser().getId();
@@ -181,6 +206,15 @@ public class TherapistDTO {
             this.approvalStatus = therapist.getApprovalStatus() != null ? therapist.getApprovalStatus().name() : null;
             this.createdAt = therapist.getCreatedAt() != null ? therapist.getCreatedAt().toString() : null;
             this.updatedAt = therapist.getUpdatedAt() != null ? therapist.getUpdatedAt().toString() : null;
+            this.mpTokenConfigurado = therapist.getMpAccessToken() != null && !therapist.getMpAccessToken().isBlank();
+        }
+
+        public TherapistResponse(Therapist therapist, Double averageRating, long ratingCount) {
+            this(therapist);
+            this.averageRating = averageRating != null
+                    ? Math.round(averageRating * 10.0) / 10.0
+                    : null;
+            this.ratingCount = (int) ratingCount;
         }
         
         // Getters and Setters
@@ -286,6 +320,30 @@ public class TherapistDTO {
         
         public void setUpdatedAt(String updatedAt) {
             this.updatedAt = updatedAt;
+        }
+
+        public boolean isMpTokenConfigurado() {
+            return mpTokenConfigurado;
+        }
+
+        public void setMpTokenConfigurado(boolean mpTokenConfigurado) {
+            this.mpTokenConfigurado = mpTokenConfigurado;
+        }
+
+        public Double getAverageRating() {
+            return averageRating;
+        }
+
+        public void setAverageRating(Double averageRating) {
+            this.averageRating = averageRating;
+        }
+
+        public Integer getRatingCount() {
+            return ratingCount;
+        }
+
+        public void setRatingCount(Integer ratingCount) {
+            this.ratingCount = ratingCount;
         }
     }
 }

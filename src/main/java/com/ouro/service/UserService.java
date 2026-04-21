@@ -1,34 +1,66 @@
 package com.ouro.service;
 
 import com.ouro.dto.UserDTO;
+import com.ouro.entity.Appointment;
 import com.ouro.entity.Therapist;
+import com.ouro.entity.TimeSlot;
 import com.ouro.entity.User;
 import com.ouro.exception.EmailVerificationException;
+import com.ouro.repository.AppointmentRepository;
+import com.ouro.repository.AvailabilityRepository;
+import com.ouro.repository.RatingRepository;
+import com.ouro.repository.ResourceRepository;
+import com.ouro.repository.TimeSlotRepository;
 import com.ouro.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 public class UserService {
-    
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
-    
+    private final AppointmentRepository appointmentRepository;
+    private final TimeSlotRepository timeSlotRepository;
+    private final AvailabilityRepository availabilityRepository;
+    private final RatingRepository ratingRepository;
+    private final ResourceRepository resourceRepository;
+
     @Autowired
-    public UserService(UserRepository userRepository, 
-                      PasswordEncoder passwordEncoder,
-                      EmailService emailService) {
+    public UserService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       EmailService emailService,
+                       AppointmentRepository appointmentRepository,
+                       TimeSlotRepository timeSlotRepository,
+                       AvailabilityRepository availabilityRepository,
+                       RatingRepository ratingRepository,
+                       ResourceRepository resourceRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.appointmentRepository = appointmentRepository;
+        this.timeSlotRepository = timeSlotRepository;
+        this.availabilityRepository = availabilityRepository;
+        this.ratingRepository = ratingRepository;
+        this.resourceRepository = resourceRepository;
     }
     
     @Transactional
@@ -55,7 +87,8 @@ public class UserService {
         user.setEmailVerified(false);
         
         User savedUser = userRepository.save(user);
-        
+        log.info("Usuario registrado: id={} email={}", savedUser.getId(), savedUser.getEmail());
+
         // Enviar email de verificación
         emailService.sendVerificationEmail(
             savedUser.getEmail(), 
@@ -82,7 +115,8 @@ public class UserService {
         user.setVerificationTokenExpiry(null);
         
         User verifiedUser = userRepository.save(user);
-        
+        log.info("Email verificado: userId={}", verifiedUser.getId());
+
         return new UserDTO.UserResponse(verifiedUser);
     }
     
@@ -111,7 +145,7 @@ public class UserService {
     }
     
     @Transactional(readOnly = true)
-    public UserDTO.UserResponse login(String email, String password) {
+    public User login(String email, String password) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Credenciales inválidas"));
 
@@ -128,7 +162,8 @@ public class UserService {
             throw new RuntimeException("Tu perfil de terapeuta está pendiente de aprobación");
         }
 
-        return new UserDTO.UserResponse(user);
+        log.info("Login exitoso: userId={} role={}", user.getId(), user.getRole());
+        return user;
     }
 
     @Transactional
@@ -179,6 +214,36 @@ public class UserService {
                 .map(UserDTO.UserResponse::new)
                 .collect(Collectors.toList());
     }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllUsersPaginados(Integer adminUserId, String search, String role, int page, int size) {
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        if (admin.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException("Acceso denegado: se requiere rol ADMIN");
+        }
+
+        User.Role roleEnum = null;
+        if (role != null && !role.isBlank()) {
+            try {
+                roleEnum = User.Role.valueOf(role.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException("Rol inválido: " + role);
+            }
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<User> pageResult = userRepository.findAllFiltered(search, roleEnum, pageable);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("content", pageResult.getContent().stream()
+                .map(UserDTO.UserAdminResponse::new)
+                .collect(Collectors.toList()));
+        result.put("totalElements", pageResult.getTotalElements());
+        result.put("totalPages", pageResult.getTotalPages());
+        result.put("pageNumber", pageResult.getNumber());
+        return result;
+    }
     
     @Transactional
     public UserDTO.UserResponse updateUser(Integer id, UserDTO.UpdateUserRequest request) {
@@ -228,9 +293,54 @@ public class UserService {
     
     @Transactional
     public void deleteUser(Integer id) {
-        if (!userRepository.existsById(id)) {
-            throw new RuntimeException("Usuario no encontrado con id: " + id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
+        eliminarUsuarioEnCascada(user);
+    }
+
+    @Transactional
+    public void adminDeleteUser(Integer targetId, Integer adminUserId) {
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario administrador no encontrado"));
+        if (admin.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException("Acceso denegado: se requiere rol ADMIN");
         }
-        userRepository.deleteById(id);
+        if (targetId.equals(adminUserId)) {
+            throw new RuntimeException("No podés eliminar tu propia cuenta de administrador");
+        }
+        User target = userRepository.findById(targetId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + targetId));
+        eliminarUsuarioEnCascada(target);
+    }
+
+    private void eliminarUsuarioEnCascada(User user) {
+        // Si es terapeuta: borrar timeslots, turnos (como terapeuta), disponibilidad y ratings recibidos
+        if (user.getTherapist() != null) {
+            Integer therapistId = user.getTherapist().getId();
+            timeSlotRepository.deleteByTherapistId(therapistId);
+            appointmentRepository.deleteByTherapistId(therapistId);
+            availabilityRepository.deleteByTherapistId(therapistId);
+            ratingRepository.deleteAllByTherapistId(therapistId);
+        }
+
+        // Liberar timeslots asociados a los turnos donde el usuario es cliente
+        List<Appointment> turnosComoCliente = appointmentRepository.findByUserId(user.getId());
+        for (Appointment appt : turnosComoCliente) {
+            timeSlotRepository.findByAppointmentId(appt.getId()).ifPresent(slot -> {
+                slot.setStatus(TimeSlot.SlotStatus.FREE);
+                slot.setAppointment(null);
+                timeSlotRepository.save(slot);
+            });
+        }
+        appointmentRepository.deleteByUserId(user.getId());
+
+        // Borrar ratings que este usuario dio
+        ratingRepository.deleteAllByUserId(user.getId());
+
+        // Borrar recursos subidos por este usuario
+        resourceRepository.deleteByUploadedById(user.getId());
+
+        userRepository.deleteById(user.getId());
+        log.info("Usuario eliminado: id={} email={}", user.getId(), user.getEmail());
     }
 }

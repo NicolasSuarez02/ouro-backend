@@ -4,6 +4,7 @@ import com.ouro.dto.TherapistDTO;
 import com.ouro.entity.Therapist;
 import com.ouro.entity.User;
 import com.ouro.exception.EmailVerificationException;
+import com.ouro.repository.RatingRepository;
 import com.ouro.repository.TherapistRepository;
 import com.ouro.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ public class TherapistService {
     private final TherapistRepository therapistRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final RatingRepository ratingRepository;
 
     @Value("${app.backend.url:http://localhost:8080}")
     private String backendUrl;
@@ -28,10 +30,18 @@ public class TherapistService {
     @Autowired
     public TherapistService(TherapistRepository therapistRepository,
                             UserRepository userRepository,
-                            StorageService storageService) {
+                            StorageService storageService,
+                            RatingRepository ratingRepository) {
         this.therapistRepository = therapistRepository;
         this.userRepository = userRepository;
         this.storageService = storageService;
+        this.ratingRepository = ratingRepository;
+    }
+
+    private TherapistDTO.TherapistResponse toResponse(Therapist therapist) {
+        Double avg = ratingRepository.findAverageScoreByTherapistId(therapist.getId());
+        long count = ratingRepository.countByTherapistId(therapist.getId());
+        return new TherapistDTO.TherapistResponse(therapist, avg, count);
     }
     
     @Transactional
@@ -67,29 +77,33 @@ public class TherapistService {
         if (request.getPriceCurrency() != null) {
             therapist.setPriceCurrency(request.getPriceCurrency());
         }
-        
+
+        if (request.getMpAccessToken() != null && !request.getMpAccessToken().isBlank()) {
+            therapist.setMpAccessToken(request.getMpAccessToken().trim());
+        }
+
         Therapist savedTherapist = therapistRepository.save(therapist);
-        return new TherapistDTO.TherapistResponse(savedTherapist);
+        return toResponse(savedTherapist);
     }
-    
+
     @Transactional(readOnly = true)
     public TherapistDTO.TherapistResponse getTherapistById(Integer id) {
         Therapist therapist = therapistRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + id));
-        return new TherapistDTO.TherapistResponse(therapist);
+        return toResponse(therapist);
     }
-    
+
     @Transactional(readOnly = true)
     public TherapistDTO.TherapistResponse getTherapistByUserId(Integer userId) {
         Therapist therapist = therapistRepository.findByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado para user id: " + userId));
-        return new TherapistDTO.TherapistResponse(therapist);
+        return toResponse(therapist);
     }
-    
+
     @Transactional(readOnly = true)
     public List<TherapistDTO.TherapistResponse> getAllTherapists() {
         return therapistRepository.findByApprovalStatus(Therapist.ApprovalStatus.APPROVED).stream()
-                .map(TherapistDTO.TherapistResponse::new)
+                .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -97,7 +111,7 @@ public class TherapistService {
     public List<TherapistDTO.TherapistResponse> getPendingTherapists(Integer adminUserId) {
         verificarAdmin(adminUserId);
         return therapistRepository.findByApprovalStatus(Therapist.ApprovalStatus.PENDING).stream()
-                .map(TherapistDTO.TherapistResponse::new)
+                .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -107,7 +121,7 @@ public class TherapistService {
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
         therapist.setApprovalStatus(Therapist.ApprovalStatus.APPROVED);
-        return new TherapistDTO.TherapistResponse(therapistRepository.save(therapist));
+        return toResponse(therapistRepository.save(therapist));
     }
 
     @Transactional
@@ -116,7 +130,7 @@ public class TherapistService {
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
         therapist.setApprovalStatus(Therapist.ApprovalStatus.REJECTED);
-        return new TherapistDTO.TherapistResponse(therapistRepository.save(therapist));
+        return toResponse(therapistRepository.save(therapist));
     }
 
     private void verificarAdmin(Integer adminUserId) {
@@ -130,7 +144,7 @@ public class TherapistService {
     @Transactional(readOnly = true)
     public List<TherapistDTO.TherapistResponse> getTherapistsBySpecialty(String specialty) {
         return therapistRepository.findBySpecialty(specialty).stream()
-                .map(TherapistDTO.TherapistResponse::new)
+                .map(this::toResponse)
                 .collect(Collectors.toList());
     }
     
@@ -158,11 +172,15 @@ public class TherapistService {
         if (request.getPriceCurrency() != null) {
             therapist.setPriceCurrency(request.getPriceCurrency());
         }
-        
+
+        if (request.getMpAccessToken() != null && !request.getMpAccessToken().isBlank()) {
+            therapist.setMpAccessToken(request.getMpAccessToken().trim());
+        }
+
         Therapist updatedTherapist = therapistRepository.save(therapist);
-        return new TherapistDTO.TherapistResponse(updatedTherapist);
+        return toResponse(updatedTherapist);
     }
-    
+
     @Transactional
     public void deleteTherapist(Integer id) {
         if (!therapistRepository.existsById(id)) {
@@ -190,7 +208,6 @@ public class TherapistService {
             throw new RuntimeException("Solo se permiten archivos de imagen");
         }
 
-        String nombreAlmacenado = storageService.guardarFoto(foto);
-        return backendUrl + "/api/therapists/photos/" + nombreAlmacenado;
+        return storageService.guardarFoto(foto);
     }
 }

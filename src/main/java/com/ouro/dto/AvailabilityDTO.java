@@ -10,21 +10,10 @@ public class AvailabilityDTO {
     // Request para guardar/reemplazar toda la disponibilidad de un terapeuta
     public static class SaveAvailabilityRequest {
 
-        @NotNull(message = "userId es requerido")
-        private Integer userId;
-
         @NotNull(message = "Los slots son requeridos")
         private List<SlotRequest> slots;
 
         public SaveAvailabilityRequest() {
-        }
-
-        public Integer getUserId() {
-            return userId;
-        }
-
-        public void setUserId(Integer userId) {
-            this.userId = userId;
         }
 
         public List<SlotRequest> getSlots() {

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -26,15 +27,16 @@ public class AvailabilityController {
 
     /**
      * Reemplaza toda la disponibilidad semanal del terapeuta.
-     * Solo puede hacerlo el propio terapeuta (userId debe coincidir con el terapeuta).
+     * Solo puede hacerlo el propio terapeuta (validado contra JWT).
      */
     @PutMapping("/therapist/{therapistId}")
     public ResponseEntity<Object> saveAvailability(
             @PathVariable Integer therapistId,
             @Valid @RequestBody AvailabilityDTO.SaveAvailabilityRequest request) {
         try {
+            Integer userId = currentUserId();
             List<AvailabilityDTO.AvailabilityResponse> response =
-                    availabilityService.saveAvailability(therapistId, request);
+                    availabilityService.saveAvailability(therapistId, request, userId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -53,5 +55,9 @@ public class AvailabilityController {
         List<AvailabilityDTO.AvailabilityResponse> response =
                 availabilityService.getAvailabilityByTherapist(therapistId);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    private Integer currentUserId() {
+        return (Integer) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

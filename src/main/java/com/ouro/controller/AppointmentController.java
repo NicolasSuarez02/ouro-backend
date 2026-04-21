@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -25,10 +26,7 @@ public class AppointmentController {
         this.appointmentService = appointmentService;
     }
 
-    /**
-     * Días del mes con al menos un slot libre para el terapeuta.
-     * Responde: ["2026-03-17", "2026-03-18", ...]
-     */
+    /** Días del mes con al menos un slot libre para el terapeuta (público). */
     @GetMapping("/available-days")
     public ResponseEntity<List<String>> getAvailableDays(
             @RequestParam Integer therapistId,
@@ -38,10 +36,7 @@ public class AppointmentController {
         return new ResponseEntity<>(dias, HttpStatus.OK);
     }
 
-    /**
-     * Slots libres de un terapeuta para un día específico.
-     * Responde: [{id, startTime, endTime}, ...]
-     */
+    /** Slots libres de un terapeuta para un día específico (público). */
     @GetMapping("/available-slots")
     public ResponseEntity<List<AppointmentDTO.SlotResponse>> getAvailableSlots(
             @RequestParam Integer therapistId,
@@ -52,14 +47,13 @@ public class AppointmentController {
         return new ResponseEntity<>(slots, HttpStatus.OK);
     }
 
-    /**
-     * Reserva un turno seleccionando un time slot específico.
-     */
+    /** Reserva un turno — requiere auth. El userId viene del JWT. */
     @PostMapping
     public ResponseEntity<Object> reservarTurno(
             @Valid @RequestBody AppointmentDTO.BookAppointmentRequest request) {
         try {
-            AppointmentDTO.AppointmentResponse response = appointmentService.reservarTurno(request);
+            Integer userId = currentUserId();
+            AppointmentDTO.AppointmentResponse response = appointmentService.reservarTurno(request, userId);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -69,14 +63,27 @@ public class AppointmentController {
         }
     }
 
-    /**
-     * Cancela un turno. Solo el usuario o el terapeuta del turno pueden cancelarlo.
-     */
-    @PutMapping("/{id}/cancel")
-    public ResponseEntity<Object> cancelarTurno(
-            @PathVariable Integer id,
-            @RequestParam Integer userId) {
+    /** Obtiene un turno por ID — solo el dueño, el terapeuta o un admin. */
+    @GetMapping("/{id}")
+    public ResponseEntity<Object> getTurnoPorId(@PathVariable Integer id) {
         try {
+            Integer requestingUserId = currentUserId();
+            AppointmentDTO.AppointmentResponse response =
+                    appointmentService.getTurnoPorId(id, requestingUserId);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+        }
+    }
+
+    /** Cancela un turno — solo el usuario o el terapeuta del turno. */
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<Object> cancelarTurno(@PathVariable Integer id) {
+        try {
+            Integer userId = currentUserId();
             AppointmentDTO.AppointmentResponse response = appointmentService.cancelarTurno(id, userId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
@@ -87,14 +94,11 @@ public class AppointmentController {
         }
     }
 
-    /**
-     * Marca un turno como completado. Solo el terapeuta del turno puede hacerlo.
-     */
+    /** Marca un turno como completado — solo el terapeuta del turno. */
     @PutMapping("/{id}/complete")
-    public ResponseEntity<Object> completarTurno(
-            @PathVariable Integer id,
-            @RequestParam Integer userId) {
+    public ResponseEntity<Object> completarTurno(@PathVariable Integer id) {
         try {
+            Integer userId = currentUserId();
             AppointmentDTO.AppointmentResponse response = appointmentService.completarTurno(id, userId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
@@ -105,14 +109,11 @@ public class AppointmentController {
         }
     }
 
-    /**
-     * Agenda de un usuario separada en próximos y pasados (solo él mismo o un admin).
-     */
+    /** Agenda de un usuario — solo él mismo o un admin. */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<Object> getTurnosPorUsuario(
-            @PathVariable Integer userId,
-            @RequestParam Integer requestingUserId) {
+    public ResponseEntity<Object> getTurnosPorUsuario(@PathVariable Integer userId) {
         try {
+            Integer requestingUserId = currentUserId();
             AppointmentDTO.AgendaResponse response =
                     appointmentService.getTurnosPorUsuario(userId, requestingUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -124,14 +125,11 @@ public class AppointmentController {
         }
     }
 
-    /**
-     * Agenda de un terapeuta separada en próximos y pasados (solo el propio terapeuta o un admin).
-     */
+    /** Agenda de un terapeuta — solo el propio terapeuta o un admin. */
     @GetMapping("/therapist/{therapistId}")
-    public ResponseEntity<Object> getTurnosPorTerapeuta(
-            @PathVariable Integer therapistId,
-            @RequestParam Integer requestingUserId) {
+    public ResponseEntity<Object> getTurnosPorTerapeuta(@PathVariable Integer therapistId) {
         try {
+            Integer requestingUserId = currentUserId();
             AppointmentDTO.AgendaResponse response =
                     appointmentService.getTurnosPorTerapeuta(therapistId, requestingUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -141,5 +139,9 @@ public class AppointmentController {
             error.put("message", e.getMessage());
             return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
         }
+    }
+
+    private Integer currentUserId() {
+        return (Integer) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

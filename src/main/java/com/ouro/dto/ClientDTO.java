@@ -3,6 +3,8 @@ package com.ouro.dto;
 import com.ouro.entity.Client;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.List;
+
 public class ClientDTO {
     
     // Request DTO para crear cliente
@@ -155,5 +157,30 @@ public class ClientDTO {
         public void setTimeOfBirth(String timeOfBirth) {
             this.timeOfBirth = timeOfBirth;
         }
+    }
+
+    // Respuesta paginada para listado de clientes
+    public static class ClientPageResponse {
+
+        private List<ClientResponse> content;
+        private int page;
+        private int size;
+        private long totalElements;
+        private int totalPages;
+
+        public ClientPageResponse(List<ClientResponse> content, int page, int size,
+                                   long totalElements, int totalPages) {
+            this.content = content;
+            this.page = page;
+            this.size = size;
+            this.totalElements = totalElements;
+            this.totalPages = totalPages;
+        }
+
+        public List<ClientResponse> getContent() { return content; }
+        public int getPage() { return page; }
+        public int getSize() { return size; }
+        public long getTotalElements() { return totalElements; }
+        public int getTotalPages() { return totalPages; }
     }
 }

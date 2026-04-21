@@ -12,4 +12,6 @@ public interface ResourceRepository extends JpaRepository<Resource, Integer> {
     List<Resource> findByApprovalStatus(Resource.ApprovalStatus status);
 
     List<Resource> findByUploadedById(Integer userId);
+
+    void deleteByUploadedById(Integer userId);
 }

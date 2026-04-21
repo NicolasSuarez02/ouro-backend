@@ -1,5 +1,6 @@
 package com.ouro.entity;
 
+import com.ouro.security.AesEncryptionConverter;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -37,6 +38,10 @@ public class Therapist {
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", nullable = false)
     private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+
+    @Convert(converter = AesEncryptionConverter.class)
+    @Column(name = "mp_access_token", length = 768)
+    private String mpAccessToken;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -142,5 +147,13 @@ public class Therapist {
 
     public void setApprovalStatus(ApprovalStatus approvalStatus) {
         this.approvalStatus = approvalStatus;
+    }
+
+    public String getMpAccessToken() {
+        return mpAccessToken;
+    }
+
+    public void setMpAccessToken(String mpAccessToken) {
+        this.mpAccessToken = mpAccessToken;
     }
 }

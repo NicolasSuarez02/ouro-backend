@@ -6,6 +6,9 @@ import com.ouro.entity.User;
 import com.ouro.repository.ClientRepository;
 import com.ouro.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
@@ -74,6 +77,30 @@ public class ClientService {
         return clientRepository.findAll().stream()
                 .map(ClientDTO.ClientResponse::new)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public ClientDTO.ClientPageResponse getAllClientsPaginated(Integer requestingUserId, int page, int size) {
+        User requesting = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        if (requesting.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException("Solo un administrador puede listar todos los clientes");
+        }
+
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("id").ascending());
+        Page<Client> pageResult = clientRepository.findAll(pageable);
+
+        List<ClientDTO.ClientResponse> content = pageResult.getContent().stream()
+                .map(ClientDTO.ClientResponse::new)
+                .collect(Collectors.toList());
+
+        return new ClientDTO.ClientPageResponse(
+                content,
+                pageResult.getNumber(),
+                pageResult.getSize(),
+                pageResult.getTotalElements(),
+                pageResult.getTotalPages()
+        );
     }
     
     @Transactional

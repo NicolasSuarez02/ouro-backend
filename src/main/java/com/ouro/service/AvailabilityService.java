@@ -4,11 +4,9 @@ import com.ouro.dto.AvailabilityDTO;
 import com.ouro.entity.Availability;
 import com.ouro.entity.Therapist;
 import com.ouro.entity.TimeSlot;
-import com.ouro.entity.User;
 import com.ouro.repository.AvailabilityRepository;
 import com.ouro.repository.TherapistRepository;
 import com.ouro.repository.TimeSlotRepository;
-import com.ouro.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,17 +25,14 @@ public class AvailabilityService {
     private final AvailabilityRepository availabilityRepository;
     private final TimeSlotRepository timeSlotRepository;
     private final TherapistRepository therapistRepository;
-    private final UserRepository userRepository;
 
     @Autowired
     public AvailabilityService(AvailabilityRepository availabilityRepository,
                                TimeSlotRepository timeSlotRepository,
-                               TherapistRepository therapistRepository,
-                               UserRepository userRepository) {
+                               TherapistRepository therapistRepository) {
         this.availabilityRepository = availabilityRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.therapistRepository = therapistRepository;
-        this.userRepository = userRepository;
     }
 
     /**
@@ -47,13 +42,14 @@ public class AvailabilityService {
     @Transactional
     public List<AvailabilityDTO.AvailabilityResponse> saveAvailability(
             Integer therapistId,
-            AvailabilityDTO.SaveAvailabilityRequest request) {
+            AvailabilityDTO.SaveAvailabilityRequest request,
+            Integer userId) {
 
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
 
         // Verificar que el userId corresponde al terapeuta
-        if (!therapist.getUser().getId().equals(request.getUserId())) {
+        if (!therapist.getUser().getId().equals(userId)) {
             throw new RuntimeException("No tenés permiso para modificar la disponibilidad de este terapeuta");
         }
 

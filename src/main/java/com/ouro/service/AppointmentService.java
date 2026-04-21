@@ -8,6 +8,8 @@ import com.ouro.repository.AppointmentRepository;
 import com.ouro.repository.TherapistRepository;
 import com.ouro.repository.TimeSlotRepository;
 import com.ouro.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,20 +22,28 @@ import java.util.stream.Collectors;
 @Service
 public class AppointmentService {
 
+    private static final Logger log = LoggerFactory.getLogger(AppointmentService.class);
+
     private final AppointmentRepository appointmentRepository;
     private final TimeSlotRepository timeSlotRepository;
     private final TherapistRepository therapistRepository;
     private final UserRepository userRepository;
+    private final PaymentService paymentService;
+    private final ZoomService zoomService;
 
     @Autowired
     public AppointmentService(AppointmentRepository appointmentRepository,
                               TimeSlotRepository timeSlotRepository,
                               TherapistRepository therapistRepository,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              PaymentService paymentService,
+                              ZoomService zoomService) {
         this.appointmentRepository = appointmentRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.therapistRepository = therapistRepository;
         this.userRepository = userRepository;
+        this.paymentService = paymentService;
+        this.zoomService = zoomService;
     }
 
     /**
@@ -77,26 +87,34 @@ public class AppointmentService {
 
     /**
      * El usuario reserva un turno seleccionando un time slot.
+     * Si el terapeuta tiene precio > 0, el turno queda en PENDING_PAYMENT
+     * y se retorna una URL de pago de Mercado Pago.
+     * El userId viene del JWT (extraído en el controller).
      */
     @Transactional
-    public AppointmentDTO.AppointmentResponse reservarTurno(AppointmentDTO.BookAppointmentRequest request) {
-        TimeSlot slot = timeSlotRepository.findById(request.getTimeSlotId())
+    public AppointmentDTO.AppointmentResponse reservarTurno(AppointmentDTO.BookAppointmentRequest request, Integer userId) {
+        TimeSlot slot = timeSlotRepository.findByIdForUpdate(request.getTimeSlotId())
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + request.getTimeSlotId()));
 
         if (slot.getStatus() != TimeSlot.SlotStatus.FREE) {
             throw new RuntimeException("El turno ya no está disponible");
         }
 
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + request.getUserId()));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
+
+        Integer precio = slot.getTherapist().getPriceAmountCents();
+        boolean tienePrecio = precio != null && precio > 0;
 
         Appointment appointment = new Appointment();
         appointment.setTherapist(slot.getTherapist());
         appointment.setUser(user);
         appointment.setStartAt(slot.getStartAt());
         appointment.setEndAt(slot.getEndAt());
-        appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
-        appointment.setPriceAmountCents(slot.getTherapist().getPriceAmountCents());
+        appointment.setStatus(tienePrecio
+                ? Appointment.AppointmentStatus.PENDING_PAYMENT
+                : Appointment.AppointmentStatus.RESERVED);
+        appointment.setPriceAmountCents(precio != null ? precio : 0);
         appointment.setCurrency(slot.getTherapist().getPriceCurrency());
         appointment.setNotes(request.getNotes());
 
@@ -107,7 +125,67 @@ public class AppointmentService {
         slot.setAppointment(savedAppointment);
         timeSlotRepository.save(slot);
 
-        return new AppointmentDTO.AppointmentResponse(savedAppointment);
+        AppointmentDTO.AppointmentResponse response = new AppointmentDTO.AppointmentResponse(savedAppointment);
+
+        // Crear preferencia de pago en Mercado Pago usando el token del terapeuta
+        if (tienePrecio) {
+            try {
+                String tokenTerapeuta = slot.getTherapist().getMpAccessToken();
+                String paymentUrl = paymentService.crearPreferenciaMP(savedAppointment, tokenTerapeuta);
+                response.setPaymentUrl(paymentUrl);
+            } catch (Exception e) {
+                log.error("Error al crear preferencia MP para turno {}: {}", savedAppointment.getId(), e.getMessage());
+                // No bloqueamos la reserva; el usuario puede reintentar el pago
+            }
+        }
+
+        return response;
+    }
+
+    /**
+     * Confirma el pago de un turno: cambia status a RESERVED y crea el meeting de Zoom.
+     * Llamado desde el webhook de Mercado Pago o desde el endpoint de simulación.
+     */
+    @Transactional
+    public AppointmentDTO.AppointmentResponse confirmarPago(Integer appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + appointmentId));
+
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING_PAYMENT) {
+            return new AppointmentDTO.AppointmentResponse(appointment);
+        }
+
+        appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
+
+        // Crear meeting de Zoom
+        String zoomUrl = zoomService.crearMeeting(appointment);
+        if (zoomUrl != null) {
+            appointment.setZoomJoinUrl(zoomUrl);
+        }
+
+        return new AppointmentDTO.AppointmentResponse(appointmentRepository.save(appointment));
+    }
+
+    /**
+     * Retorna un turno por ID. Solo puede verlo el usuario dueño, el terapeuta o un admin.
+     */
+    @Transactional(readOnly = true)
+    public AppointmentDTO.AppointmentResponse getTurnoPorId(Integer id, Integer requestingUserId) {
+        Appointment appointment = appointmentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + id));
+
+        boolean esElUsuario = appointment.getUser().getId().equals(requestingUserId);
+        boolean esElTerapeuta = appointment.getTherapist().getUser().getId().equals(requestingUserId);
+
+        if (!esElUsuario && !esElTerapeuta) {
+            User requesting = userRepository.findById(requestingUserId)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            if (requesting.getRole() != User.Role.ADMIN) {
+                throw new RuntimeException("No tenés permiso para ver este turno");
+            }
+        }
+
+        return new AppointmentDTO.AppointmentResponse(appointment);
     }
 
     /**

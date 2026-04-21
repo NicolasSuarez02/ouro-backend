@@ -13,9 +13,6 @@ public class AppointmentDTO {
         @NotNull(message = "timeSlotId es requerido")
         private Integer timeSlotId;
 
-        @NotNull(message = "userId es requerido")
-        private Integer userId;
-
         private String notes;
 
         public BookAppointmentRequest() {
@@ -27,14 +24,6 @@ public class AppointmentDTO {
 
         public void setTimeSlotId(Integer timeSlotId) {
             this.timeSlotId = timeSlotId;
-        }
-
-        public Integer getUserId() {
-            return userId;
-        }
-
-        public void setUserId(Integer userId) {
-            this.userId = userId;
         }
 
         public String getNotes() {
@@ -64,6 +53,9 @@ public class AppointmentDTO {
         private String currency;
         private String notes;
         private String createdAt;
+        private String zoomJoinUrl;
+        // Solo se setea al crear el turno; no es un campo de la entidad
+        private String paymentUrl;
 
         public AppointmentResponse() {
         }
@@ -84,6 +76,7 @@ public class AppointmentDTO {
             this.currency = appointment.getCurrency();
             this.notes = appointment.getNotes();
             this.createdAt = appointment.getCreatedAt() != null ? appointment.getCreatedAt().toString() : null;
+            this.zoomJoinUrl = appointment.getZoomJoinUrl();
         }
 
         public Integer getId() {
@@ -204,6 +197,22 @@ public class AppointmentDTO {
 
         public void setCreatedAt(String createdAt) {
             this.createdAt = createdAt;
+        }
+
+        public String getZoomJoinUrl() {
+            return zoomJoinUrl;
+        }
+
+        public void setZoomJoinUrl(String zoomJoinUrl) {
+            this.zoomJoinUrl = zoomJoinUrl;
+        }
+
+        public String getPaymentUrl() {
+            return paymentUrl;
+        }
+
+        public void setPaymentUrl(String paymentUrl) {
+            this.paymentUrl = paymentUrl;
         }
     }
 

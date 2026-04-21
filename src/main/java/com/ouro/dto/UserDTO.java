@@ -239,6 +239,36 @@ public class UserDTO {
         }
     }
     
+    // Response extendido para panel de administración
+    public static class UserAdminResponse extends UserResponse {
+
+        private String therapistApprovalStatus;
+        private String therapistSpecialty;
+        private Integer therapistId;
+
+        public UserAdminResponse() {
+        }
+
+        public UserAdminResponse(User user) {
+            super(user);
+            if (user.getTherapist() != null) {
+                this.therapistId = user.getTherapist().getId();
+                this.therapistApprovalStatus = user.getTherapist().getApprovalStatus() != null
+                        ? user.getTherapist().getApprovalStatus().name() : null;
+                this.therapistSpecialty = user.getTherapist().getSpecialty();
+            }
+        }
+
+        public String getTherapistApprovalStatus() { return therapistApprovalStatus; }
+        public void setTherapistApprovalStatus(String therapistApprovalStatus) { this.therapistApprovalStatus = therapistApprovalStatus; }
+
+        public String getTherapistSpecialty() { return therapistSpecialty; }
+        public void setTherapistSpecialty(String therapistSpecialty) { this.therapistSpecialty = therapistSpecialty; }
+
+        public Integer getTherapistId() { return therapistId; }
+        public void setTherapistId(Integer therapistId) { this.therapistId = therapistId; }
+    }
+
     // DTO para verificación de email
     public static class VerifyEmailRequest {
 

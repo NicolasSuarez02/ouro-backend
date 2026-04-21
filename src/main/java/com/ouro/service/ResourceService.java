@@ -153,12 +153,12 @@ public class ResourceService {
             throw new RuntimeException("No tenés permiso para eliminar este recurso");
         }
 
-        storageService.eliminar(resource.getCategory().name().toLowerCase(), resource.getStoredFileName());
+        storageService.eliminar(resource.getStoredFileName(), resource.getMimeType());
         resourceRepository.deleteById(resourceId);
     }
 
-    public org.springframework.core.io.Resource cargarArchivo(Resource resource) {
-        return storageService.cargar(resource.getCategory().name().toLowerCase(), resource.getStoredFileName());
+    public String obtenerUrlDescarga(Resource resource) {
+        return resource.getFilePath();
     }
 
     private User verificarAdmin(Integer adminUserId) {

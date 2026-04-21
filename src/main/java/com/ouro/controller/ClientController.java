@@ -6,9 +6,11 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/clients")
@@ -53,10 +55,22 @@ public class ClientController {
         }
     }
         
+    /** Listado paginado de clientes — solo ADMIN. */
     @GetMapping
-    public ResponseEntity<List<ClientDTO.ClientResponse>> getAllClients() {
-        List<ClientDTO.ClientResponse> clients = clientService.getAllClients();
-        return new ResponseEntity<>(clients, HttpStatus.OK);
+    public ResponseEntity<Object> getAllClients(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        try {
+            Integer adminUserId = currentUserId();
+            ClientDTO.ClientPageResponse response =
+                    clientService.getAllClientsPaginated(adminUserId, page, size);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+        }
     }
     
     @PutMapping("/{id}")
@@ -79,5 +93,9 @@ public class ClientController {
         } catch (RuntimeException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+    }
+
+    private Integer currentUserId() {
+        return (Integer) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }

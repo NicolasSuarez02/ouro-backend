@@ -2,13 +2,13 @@ package com.ouro.controller;
 
 import com.ouro.dto.TherapistDTO;
 import com.ouro.exception.EmailVerificationException;
-import com.ouro.service.StorageService;
 import com.ouro.service.TherapistService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,16 +20,14 @@ import java.util.Map;
 @RequestMapping("/api/therapists")
 @CrossOrigin(origins = "*")
 public class TherapistController {
-    
+
     private final TherapistService therapistService;
-    private final StorageService storageService;
 
     @Autowired
-    public TherapistController(TherapistService therapistService, StorageService storageService) {
+    public TherapistController(TherapistService therapistService) {
         this.therapistService = therapistService;
-        this.storageService = storageService;
     }
-    
+
     @PostMapping
     public ResponseEntity<Object> createTherapist(
             @Valid @RequestBody TherapistDTO.CreateTherapistRequest request) {
@@ -49,7 +47,7 @@ public class TherapistController {
             return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         }
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<TherapistDTO.TherapistResponse> getTherapistById(@PathVariable Integer id) {
         try {
@@ -59,7 +57,7 @@ public class TherapistController {
             return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
         }
     }
-    
+
     @GetMapping("/user/{userId}")
     public ResponseEntity<TherapistDTO.TherapistResponse> getTherapistByUserId(@PathVariable Integer userId) {
         try {
@@ -69,24 +67,23 @@ public class TherapistController {
             return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
         }
     }
-    
+
     @GetMapping
     public ResponseEntity<List<TherapistDTO.TherapistResponse>> getAllTherapists(
             @RequestParam(required = false) String specialty) {
-        List<TherapistDTO.TherapistResponse> therapists;
-
-        if (specialty != null && !specialty.isEmpty()) {
-            therapists = therapistService.getTherapistsBySpecialty(specialty);
-        } else {
-            therapists = therapistService.getAllTherapists();
-        }
-
+        List<TherapistDTO.TherapistResponse> therapists = (specialty != null && !specialty.isEmpty())
+                ? therapistService.getTherapistsBySpecialty(specialty)
+                : therapistService.getAllTherapists();
         return new ResponseEntity<>(therapists, HttpStatus.OK);
     }
 
+    /**
+     * GET /api/therapists/pending — solo para ADMIN (verificado por JWT).
+     */
     @GetMapping("/pending")
-    public ResponseEntity<Object> getPendingTherapists(@RequestParam Integer adminUserId) {
+    public ResponseEntity<Object> getPendingTherapists() {
         try {
+            Integer adminUserId = currentUserId();
             List<TherapistDTO.TherapistResponse> therapists = therapistService.getPendingTherapists(adminUserId);
             return new ResponseEntity<>(therapists, HttpStatus.OK);
         } catch (RuntimeException e) {
@@ -97,11 +94,13 @@ public class TherapistController {
         }
     }
 
+    /**
+     * PUT /api/therapists/{id}/approve — solo para ADMIN.
+     */
     @PutMapping("/{id}/approve")
-    public ResponseEntity<Object> approveTherapist(
-            @PathVariable Integer id,
-            @RequestParam Integer adminUserId) {
+    public ResponseEntity<Object> approveTherapist(@PathVariable Integer id) {
         try {
+            Integer adminUserId = currentUserId();
             TherapistDTO.TherapistResponse response = therapistService.approveTherapist(id, adminUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
@@ -112,11 +111,13 @@ public class TherapistController {
         }
     }
 
+    /**
+     * PUT /api/therapists/{id}/reject — solo para ADMIN.
+     */
     @PutMapping("/{id}/reject")
-    public ResponseEntity<Object> rejectTherapist(
-            @PathVariable Integer id,
-            @RequestParam Integer adminUserId) {
+    public ResponseEntity<Object> rejectTherapist(@PathVariable Integer id) {
         try {
+            Integer adminUserId = currentUserId();
             TherapistDTO.TherapistResponse response = therapistService.rejectTherapist(id, adminUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
@@ -126,7 +127,7 @@ public class TherapistController {
             return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
         }
     }
-    
+
     @PutMapping("/{id}")
     public ResponseEntity<TherapistDTO.TherapistResponse> updateTherapist(
             @PathVariable Integer id,
@@ -138,7 +139,7 @@ public class TherapistController {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
         }
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTherapist(@PathVariable Integer id) {
         try {
@@ -150,14 +151,12 @@ public class TherapistController {
     }
 
     /**
-     * Sube una foto de perfil. Retorna la URL pública de la foto.
-     * POST /api/therapists/upload-photo?userId=X
+     * POST /api/therapists/upload-photo — requiere auth (JWT).
      */
     @PostMapping(value = "/upload-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Object> uploadPhoto(
-            @RequestPart("photo") MultipartFile photo,
-            @RequestParam Integer userId) {
+    public ResponseEntity<Object> uploadPhoto(@RequestPart("photo") MultipartFile photo) {
         try {
+            Integer userId = currentUserId();
             String url = therapistService.uploadPhoto(userId, photo);
             Map<String, String> result = new HashMap<>();
             result.put("photoUrl", url);
@@ -170,24 +169,7 @@ public class TherapistController {
         }
     }
 
-    /**
-     * Sirve una foto de perfil almacenada en disco.
-     * GET /api/therapists/photos/{filename}
-     */
-    @GetMapping("/photos/{filename}")
-    public ResponseEntity<org.springframework.core.io.Resource> servePhoto(
-            @PathVariable String filename) {
-        try {
-            org.springframework.core.io.Resource resource = storageService.cargarFoto(filename);
-            String contentType = "image/jpeg";
-            if (filename.toLowerCase().endsWith(".png")) contentType = "image/png";
-            else if (filename.toLowerCase().endsWith(".webp")) contentType = "image/webp";
-            else if (filename.toLowerCase().endsWith(".gif")) contentType = "image/gif";
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .body(resource);
-        } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+    private Integer currentUserId() {
+        return (Integer) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 }
