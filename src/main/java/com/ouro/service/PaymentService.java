@@ -26,9 +26,6 @@ public class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
-    @Value("${mercadopago.access-token}")
-    private String mpAccessTokenGlobal;
-
     @Value("${mercadopago.sandbox:true}")
     private boolean sandbox;
 
@@ -38,14 +35,11 @@ public class PaymentService {
     @Value("${app.backend.url}")
     private String backendUrl;
 
-    /**
-     * Resuelve qué access token usar: el del terapeuta si está configurado,
-     * de lo contrario el token global de la plataforma.
-     */
     private String resolverToken(String tokenTerapeuta) {
-        return (tokenTerapeuta != null && !tokenTerapeuta.isBlank())
-                ? tokenTerapeuta
-                : mpAccessTokenGlobal;
+        if (tokenTerapeuta == null || tokenTerapeuta.isBlank()) {
+            throw new IllegalStateException("El terapeuta no tiene configurado su token de Mercado Pago.");
+        }
+        return tokenTerapeuta;
     }
 
     /**

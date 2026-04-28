@@ -36,6 +36,9 @@ build/
 application-local.properties
 application-prod.properties
 
+### Variables de entorno ###
+.env
+
 ### Logs ###
 *.log
 
