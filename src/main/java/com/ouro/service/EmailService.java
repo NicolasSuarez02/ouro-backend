@@ -3,6 +3,8 @@ package com.ouro.service;
 import com.ouro.dto.EmailDTO;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class EmailService {
+
+    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     
     private final JavaMailSender mailSender;
     
@@ -38,30 +42,29 @@ public class EmailService {
             message.setText(request.getBody());
             
             mailSender.send(message);
-            
+            log.info("Email enviado a {}", request.getTo());
             return new EmailDTO.EmailResponse(true, "Email enviado exitosamente a " + request.getTo());
         } catch (Exception e) {
+            log.error("Error al enviar email a {}: {}", request.getTo(), e.getMessage(), e);
             return new EmailDTO.EmailResponse(false, "Error al enviar email: " + e.getMessage());
         }
     }
-    
-    /**
-     * Enviar email HTML
-     */
+
     public EmailDTO.EmailResponse sendHtmlEmail(EmailDTO.SendEmailRequest request) {
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-            
+
             helper.setFrom(fromEmail);
             helper.setTo(request.getTo());
             helper.setSubject(request.getSubject());
-            helper.setText(request.getBody(), true); // true indica HTML
-            
+            helper.setText(request.getBody(), true);
+
             mailSender.send(mimeMessage);
-            
+            log.info("Email HTML enviado a {}", request.getTo());
             return new EmailDTO.EmailResponse(true, "Email HTML enviado exitosamente a " + request.getTo());
         } catch (Exception e) {
+            log.error("Error al enviar email HTML a {}: {}", request.getTo(), e.getMessage(), e);
             return new EmailDTO.EmailResponse(false, "Error al enviar email HTML: " + e.getMessage());
         }
     }
