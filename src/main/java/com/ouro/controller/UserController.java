@@ -54,11 +54,13 @@ public class UserController {
     @GetMapping("/verify-email")
     public ResponseEntity<Map<String, Object>> verifyEmail(@RequestParam String token) {
         try {
-            UserDTO.UserResponse response = userService.verifyEmail(token);
+            User user = userService.verifyEmail(token);
+            String jwtToken = jwtService.generarToken(user);
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("message", "Email verificado exitosamente");
-            result.put("user", response);
+            result.put("token", jwtToken);
+            result.put("user", new UserDTO.UserResponse(user));
             return new ResponseEntity<>(result, HttpStatus.OK);
         } catch (EmailVerificationException e) {
             Map<String, Object> error = new HashMap<>();

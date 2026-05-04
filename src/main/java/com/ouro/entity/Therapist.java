@@ -43,6 +43,9 @@ public class Therapist {
     @Column(name = "mp_access_token", length = 768)
     private String mpAccessToken;
 
+    @Column(name = "min_booking_lead_hours", nullable = false)
+    private Integer minBookingLeadHours = 1;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -155,5 +158,13 @@ public class Therapist {
 
     public void setMpAccessToken(String mpAccessToken) {
         this.mpAccessToken = mpAccessToken;
+    }
+
+    public Integer getMinBookingLeadHours() {
+        return minBookingLeadHours;
+    }
+
+    public void setMinBookingLeadHours(Integer minBookingLeadHours) {
+        this.minBookingLeadHours = minBookingLeadHours;
     }
 }

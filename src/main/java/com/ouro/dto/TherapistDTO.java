@@ -30,6 +30,8 @@ public class TherapistDTO {
 
         private String mpAccessToken;
 
+        private Integer minBookingLeadHours;
+
         // Constructors
         public CreateTherapistRequest() {
         }
@@ -90,6 +92,14 @@ public class TherapistDTO {
         public void setMpAccessToken(String mpAccessToken) {
             this.mpAccessToken = mpAccessToken;
         }
+
+        public Integer getMinBookingLeadHours() {
+            return minBookingLeadHours;
+        }
+
+        public void setMinBookingLeadHours(Integer minBookingLeadHours) {
+            this.minBookingLeadHours = minBookingLeadHours;
+        }
     }
 
     // Request DTO para actualizar terapeuta
@@ -111,6 +121,8 @@ public class TherapistDTO {
         private String priceCurrency;
 
         private String mpAccessToken;
+
+        private Integer minBookingLeadHours;
 
         // Constructors
         public UpdateTherapistRequest() {
@@ -164,6 +176,14 @@ public class TherapistDTO {
         public void setMpAccessToken(String mpAccessToken) {
             this.mpAccessToken = mpAccessToken;
         }
+
+        public Integer getMinBookingLeadHours() {
+            return minBookingLeadHours;
+        }
+
+        public void setMinBookingLeadHours(Integer minBookingLeadHours) {
+            this.minBookingLeadHours = minBookingLeadHours;
+        }
     }
 
     // Response DTO
@@ -184,6 +204,7 @@ public class TherapistDTO {
         private String updatedAt;
         // true si el terapeuta ya configuró su token de MP (no devolvemos el token en claro)
         private boolean mpTokenConfigurado;
+        private Integer minBookingLeadHours;
         // Calificación promedio (1-5), null si no tiene calificaciones aún
         private Double averageRating;
         private Integer ratingCount;
@@ -207,6 +228,7 @@ public class TherapistDTO {
             this.createdAt = therapist.getCreatedAt() != null ? therapist.getCreatedAt().toString() : null;
             this.updatedAt = therapist.getUpdatedAt() != null ? therapist.getUpdatedAt().toString() : null;
             this.mpTokenConfigurado = therapist.getMpAccessToken() != null && !therapist.getMpAccessToken().isBlank();
+            this.minBookingLeadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
         }
 
         public TherapistResponse(Therapist therapist, Double averageRating, long ratingCount) {
@@ -328,6 +350,14 @@ public class TherapistDTO {
 
         public void setMpTokenConfigurado(boolean mpTokenConfigurado) {
             this.mpTokenConfigurado = mpTokenConfigurado;
+        }
+
+        public Integer getMinBookingLeadHours() {
+            return minBookingLeadHours;
+        }
+
+        public void setMinBookingLeadHours(Integer minBookingLeadHours) {
+            this.minBookingLeadHours = minBookingLeadHours;
         }
 
         public Double getAverageRating() {

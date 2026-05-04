@@ -58,10 +58,16 @@ public class AppointmentService {
         LocalDateTime desde = inicioMes.atStartOfDay();
         LocalDateTime hasta = finMes.atTime(23, 59, 59);
 
+        com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
+        int leadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
+        LocalDateTime minStartAt = LocalDateTime.now().plusHours(leadHours);
+
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
                         therapistId, TimeSlot.SlotStatus.FREE, desde, hasta)
                 .stream()
+                .filter(slot -> slot.getStartAt().isAfter(minStartAt))
                 .map(slot -> slot.getStartAt().toLocalDate().toString())
                 .distinct()
                 .sorted()
@@ -76,10 +82,16 @@ public class AppointmentService {
         LocalDateTime desde = fecha.atStartOfDay();
         LocalDateTime hasta = fecha.atTime(23, 59, 59);
 
+        com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
+        int leadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
+        LocalDateTime minStartAt = LocalDateTime.now().plusHours(leadHours);
+
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
                         therapistId, TimeSlot.SlotStatus.FREE, desde, hasta)
                 .stream()
+                .filter(slot -> slot.getStartAt().isAfter(minStartAt))
                 .map(AppointmentDTO.SlotResponse::new)
                 .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
                 .collect(Collectors.toList());

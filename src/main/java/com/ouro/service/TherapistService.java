@@ -82,6 +82,10 @@ public class TherapistService {
             therapist.setMpAccessToken(request.getMpAccessToken().trim());
         }
 
+        if (request.getMinBookingLeadHours() != null) {
+            therapist.setMinBookingLeadHours(request.getMinBookingLeadHours());
+        }
+
         Therapist savedTherapist = therapistRepository.save(therapist);
         return toResponse(savedTherapist);
     }
@@ -175,6 +179,10 @@ public class TherapistService {
 
         if (request.getMpAccessToken() != null && !request.getMpAccessToken().isBlank()) {
             therapist.setMpAccessToken(request.getMpAccessToken().trim());
+        }
+
+        if (request.getMinBookingLeadHours() != null) {
+            therapist.setMinBookingLeadHours(request.getMinBookingLeadHours());
         }
 
         Therapist updatedTherapist = therapistRepository.save(therapist);

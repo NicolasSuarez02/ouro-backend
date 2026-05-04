@@ -2,7 +2,6 @@ package com.ouro.service;
 
 import com.ouro.dto.UserDTO;
 import com.ouro.entity.Appointment;
-import com.ouro.entity.Therapist;
 import com.ouro.entity.TimeSlot;
 import com.ouro.entity.User;
 import com.ouro.exception.EmailVerificationException;
@@ -100,24 +99,24 @@ public class UserService {
     }
     
     @Transactional
-    public UserDTO.UserResponse verifyEmail(String token) {
+    public User verifyEmail(String token) {
         User user = userRepository.findByVerificationToken(token)
                 .orElseThrow(() -> new EmailVerificationException("Token de verificación inválido"));
-        
+
         // Verificar si el token ha expirado
         if (user.getVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
             throw new EmailVerificationException("El token de verificación ha expirado");
         }
-        
+
         // Verificar el email
         user.setEmailVerified(true);
         user.setVerificationToken(null);
         user.setVerificationTokenExpiry(null);
-        
+
         User verifiedUser = userRepository.save(user);
         log.info("Email verificado: userId={}", verifiedUser.getId());
 
-        return new UserDTO.UserResponse(verifiedUser);
+        return verifiedUser;
     }
     
     @Transactional
@@ -155,11 +154,6 @@ public class UserService {
 
         if (!user.getEmailVerified()) {
             throw new EmailVerificationException("Debes verificar tu email antes de iniciar sesión");
-        }
-
-        if (user.getTherapist() != null &&
-                user.getTherapist().getApprovalStatus() != Therapist.ApprovalStatus.APPROVED) {
-            throw new RuntimeException("Tu perfil de terapeuta está pendiente de aprobación");
         }
 
         log.info("Login exitoso: userId={} role={}", user.getId(), user.getRole());
