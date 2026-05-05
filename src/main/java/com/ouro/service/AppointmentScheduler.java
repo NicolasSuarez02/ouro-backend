@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Component
@@ -36,7 +37,7 @@ public class AppointmentScheduler {
     @Scheduled(fixedDelay = 3_600_000)
     @Transactional
     public void cancelarTurnosVencidos() {
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
         List<Appointment> vencidos = appointmentRepository.findPendingPaymentBefore(ahora);
 
         if (vencidos.isEmpty()) return;

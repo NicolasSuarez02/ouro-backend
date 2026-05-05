@@ -11,6 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +47,7 @@ public class TimeSlotController {
                 throw new RuntimeException("No tenés permiso para ver estos turnos");
             }
 
-            LocalDateTime desde = LocalDateTime.now();
+            LocalDateTime desde = LocalDateTime.now(ZoneOffset.UTC);
             LocalDateTime hasta = desde.plusDays(60);
 
             List<TimeSlot> slots = timeSlotRepository

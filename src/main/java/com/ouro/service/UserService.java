@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +83,7 @@ public class UserService {
         // Generar token de verificación
         String verificationToken = UUID.randomUUID().toString();
         user.setVerificationToken(verificationToken);
-        user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24)); // Expira en 24 horas
+        user.setVerificationTokenExpiry(LocalDateTime.now(ZoneOffset.UTC).plusHours(24)); // Expira en 24 horas
         user.setEmailVerified(false);
         
         User savedUser = userRepository.save(user);
@@ -104,7 +105,7 @@ public class UserService {
                 .orElseThrow(() -> new EmailVerificationException("Token de verificación inválido"));
 
         // Verificar si el token ha expirado
-        if (user.getVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (user.getVerificationTokenExpiry().isBefore(LocalDateTime.now(ZoneOffset.UTC))) {
             throw new EmailVerificationException("El token de verificación ha expirado");
         }
 
@@ -131,7 +132,7 @@ public class UserService {
         // Generar nuevo token
         String verificationToken = UUID.randomUUID().toString();
         user.setVerificationToken(verificationToken);
-        user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
+        user.setVerificationTokenExpiry(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));
         
         userRepository.save(user);
         
@@ -166,7 +167,7 @@ public class UserService {
         userRepository.findByEmail(email).ifPresent(user -> {
             String resetToken = UUID.randomUUID().toString();
             user.setResetPasswordToken(resetToken);
-            user.setResetPasswordTokenExpiry(LocalDateTime.now().plusHours(1));
+            user.setResetPasswordTokenExpiry(LocalDateTime.now(ZoneOffset.UTC).plusHours(1));
             userRepository.save(user);
 
             emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetToken);
@@ -178,7 +179,7 @@ public class UserService {
         User user = userRepository.findByResetPasswordToken(token)
                 .orElseThrow(() -> new RuntimeException("Token de reset inválido o expirado"));
 
-        if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now(ZoneOffset.UTC))) {
             throw new RuntimeException("El token de reset ha expirado");
         }
 
@@ -255,7 +256,7 @@ public class UserService {
             // Generar nuevo token de verificación
             String verificationToken = UUID.randomUUID().toString();
             user.setVerificationToken(verificationToken);
-            user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
+            user.setVerificationTokenExpiry(LocalDateTime.now(ZoneOffset.UTC).plusHours(24));
             
             // Enviar email de verificación al nuevo email
             emailService.sendVerificationEmail(

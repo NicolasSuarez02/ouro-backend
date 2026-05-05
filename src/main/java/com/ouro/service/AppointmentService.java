@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -61,7 +62,7 @@ public class AppointmentService {
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
         int leadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
-        LocalDateTime minStartAt = LocalDateTime.now().plusHours(leadHours);
+        LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
 
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
@@ -85,7 +86,7 @@ public class AppointmentService {
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
         int leadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
-        LocalDateTime minStartAt = LocalDateTime.now().plusHours(leadHours);
+        LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
 
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
@@ -265,7 +266,7 @@ public class AppointmentService {
                 throw new RuntimeException("No tenés permiso para ver estos turnos");
             }
         }
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
         List<AppointmentDTO.AppointmentResponse> todos = appointmentRepository
                 .findByUserIdOrderByStartAtDesc(userId).stream()
                 .map(AppointmentDTO.AppointmentResponse::new)
@@ -304,7 +305,7 @@ public class AppointmentService {
             throw new RuntimeException("No tenés permiso para ver la agenda de este terapeuta");
         }
 
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
         List<AppointmentDTO.AppointmentResponse> todos = appointmentRepository
                 .findByTherapistIdOrderByStartAtAsc(therapistId).stream()
                 .map(AppointmentDTO.AppointmentResponse::new)
