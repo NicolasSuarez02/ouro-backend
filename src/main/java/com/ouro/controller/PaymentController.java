@@ -94,6 +94,17 @@ public class PaymentController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/simular-pago")
+    public ResponseEntity<Void> simularPago(@RequestParam Integer appointmentId) {
+        try {
+            appointmentService.confirmarPago(appointmentId);
+            log.info("Pago simulado para turno {}", appointmentId);
+        } catch (Exception e) {
+            log.error("Error al simular pago para turno {}: {}", appointmentId, e.getMessage());
+        }
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/webhook")
     public ResponseEntity<Void> webhookPing() {
         return ResponseEntity.ok().build();
