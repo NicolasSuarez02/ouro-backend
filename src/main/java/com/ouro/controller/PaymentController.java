@@ -7,7 +7,9 @@ import com.ouro.service.PaymentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -96,6 +98,9 @@ public class PaymentController {
 
     @PostMapping("/simular-pago")
     public ResponseEntity<Void> simularPago(@RequestParam Integer appointmentId) {
+        if (!esAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             appointmentService.confirmarPago(appointmentId);
             log.info("Pago simulado para turno {}", appointmentId);
@@ -103,6 +108,12 @@ public class PaymentController {
             log.error("Error al simular pago para turno {}: {}", appointmentId, e.getMessage());
         }
         return ResponseEntity.ok().build();
+    }
+
+    private boolean esAdmin() {
+        return SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     @GetMapping("/webhook")

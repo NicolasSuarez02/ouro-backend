@@ -152,27 +152,31 @@ public class UserController {
     @GetMapping("/{id}")
     public ResponseEntity<UserDTO.UserResponse> getUserById(@PathVariable Integer id) {
         try {
-            UserDTO.UserResponse response = userService.getUserById(id);
+            UserDTO.UserResponse response = userService.getUserById(id, currentUserId());
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
-            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(null, HttpStatus.FORBIDDEN);
         }
     }
 
     @GetMapping("/email/{email}")
     public ResponseEntity<UserDTO.UserResponse> getUserByEmail(@PathVariable String email) {
         try {
-            UserDTO.UserResponse response = userService.getUserByEmail(email);
+            UserDTO.UserResponse response = userService.getUserByEmail(email, currentUserId());
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
-            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(null, HttpStatus.FORBIDDEN);
         }
     }
 
     @GetMapping
     public ResponseEntity<List<UserDTO.UserResponse>> getAllUsers() {
-        List<UserDTO.UserResponse> users = userService.getAllUsers();
-        return new ResponseEntity<>(users, HttpStatus.OK);
+        try {
+            List<UserDTO.UserResponse> users = userService.getAllUsers(currentUserId());
+            return new ResponseEntity<>(users, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(null, HttpStatus.FORBIDDEN);
+        }
     }
 
     /**
@@ -202,20 +206,20 @@ public class UserController {
             @PathVariable Integer id,
             @Valid @RequestBody UserDTO.UpdateUserRequest request) {
         try {
-            UserDTO.UserResponse response = userService.updateUser(id, request);
+            UserDTO.UserResponse response = userService.updateUser(id, request, currentUserId());
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(null, HttpStatus.FORBIDDEN);
         }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Integer id) {
         try {
-            userService.deleteUser(id);
+            userService.deleteUser(id, currentUserId());
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
     }
 

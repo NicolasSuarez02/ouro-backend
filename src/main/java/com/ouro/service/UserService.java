@@ -190,21 +190,37 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserDTO.UserResponse getUserById(Integer id) {
+    public UserDTO.UserResponse getUserById(Integer id, Integer requestingUserId) {
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        boolean isAdmin = requestingUser.getRole() == User.Role.ADMIN;
+        if (!isAdmin && !requestingUserId.equals(id)) {
+            throw new RuntimeException("Acceso denegado");
+        }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
         return new UserDTO.UserResponse(user);
     }
-    
+
     @Transactional(readOnly = true)
-    public UserDTO.UserResponse getUserByEmail(String email) {
+    public UserDTO.UserResponse getUserByEmail(String email, Integer requestingUserId) {
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        if (requestingUser.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException("Acceso denegado: se requiere rol ADMIN");
+        }
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + email));
         return new UserDTO.UserResponse(user);
     }
-    
+
     @Transactional(readOnly = true)
-    public List<UserDTO.UserResponse> getAllUsers() {
+    public List<UserDTO.UserResponse> getAllUsers(Integer requestingUserId) {
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        if (requestingUser.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException("Acceso denegado: se requiere rol ADMIN");
+        }
         return userRepository.findAll().stream()
                 .map(UserDTO.UserResponse::new)
                 .collect(Collectors.toList());
@@ -241,10 +257,20 @@ public class UserService {
     }
     
     @Transactional
-    public UserDTO.UserResponse updateUser(Integer id, UserDTO.UpdateUserRequest request) {
+    public UserDTO.UserResponse updateUser(Integer id, UserDTO.UpdateUserRequest request, Integer requestingUserId) {
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        boolean isAdmin = requestingUser.getRole() == User.Role.ADMIN;
+        if (!isAdmin && !requestingUserId.equals(id)) {
+            throw new RuntimeException("Acceso denegado: solo podés modificar tu propia cuenta");
+        }
+        if (request.getRole() != null && !isAdmin) {
+            throw new RuntimeException("Acceso denegado: solo un administrador puede cambiar el rol");
+        }
+
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
-        
+
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
             if (userRepository.existsByEmail(request.getEmail())) {
                 throw new RuntimeException("Email ya está registrado");
@@ -287,7 +313,12 @@ public class UserService {
     }
     
     @Transactional
-    public void deleteUser(Integer id) {
+    public void deleteUser(Integer id, Integer requestingUserId) {
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        if (requestingUser.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException("Acceso denegado: se requiere rol ADMIN");
+        }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
         eliminarUsuarioEnCascada(user);

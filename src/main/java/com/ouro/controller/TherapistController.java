@@ -141,20 +141,20 @@ public class TherapistController {
             @PathVariable Integer id,
             @Valid @RequestBody TherapistDTO.UpdateTherapistRequest request) {
         try {
-            TherapistDTO.TherapistResponse response = therapistService.updateTherapist(id, request);
+            TherapistDTO.TherapistResponse response = therapistService.updateTherapist(id, request, currentUserId());
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(null, HttpStatus.FORBIDDEN);
         }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTherapist(@PathVariable Integer id) {
         try {
-            therapistService.deleteTherapist(id);
+            therapistService.deleteTherapist(id, currentUserId());
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (RuntimeException e) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
     }
 

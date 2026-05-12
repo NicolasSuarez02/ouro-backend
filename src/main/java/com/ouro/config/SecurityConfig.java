@@ -60,7 +60,6 @@ public class SecurityConfig {
 
                 // ── Webhooks Mercado Pago: siempre públicos ───────
                 .requestMatchers("/api/payments/webhook", "/api/payments/webhook/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/payments/simular-pago").permitAll()
 
                 // ── Todo lo demás requiere autenticación ──────────
                 .anyRequest().authenticated()

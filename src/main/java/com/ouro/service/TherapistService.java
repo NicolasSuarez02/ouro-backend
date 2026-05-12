@@ -153,9 +153,16 @@ public class TherapistService {
     }
     
     @Transactional
-    public TherapistDTO.TherapistResponse updateTherapist(Integer id, TherapistDTO.UpdateTherapistRequest request) {
+    public TherapistDTO.TherapistResponse updateTherapist(Integer id, TherapistDTO.UpdateTherapistRequest request, Integer requestingUserId) {
         Therapist therapist = therapistRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + id));
+        User requestingUser = userRepository.findById(requestingUserId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        boolean isAdmin = requestingUser.getRole() == User.Role.ADMIN;
+        boolean isOwner = therapist.getUser().getId().equals(requestingUserId);
+        if (!isAdmin && !isOwner) {
+            throw new RuntimeException("Acceso denegado: solo el propio terapeuta o un administrador puede editar este perfil");
+        }
         
         if (request.getBio() != null) {
             therapist.setBio(request.getBio());
@@ -190,7 +197,8 @@ public class TherapistService {
     }
 
     @Transactional
-    public void deleteTherapist(Integer id) {
+    public void deleteTherapist(Integer id, Integer requestingUserId) {
+        verificarAdmin(requestingUserId);
         if (!therapistRepository.existsById(id)) {
             throw new RuntimeException("Terapeuta no encontrado con id: " + id);
         }
