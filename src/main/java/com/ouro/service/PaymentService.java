@@ -9,6 +9,7 @@ import com.mercadopago.client.preference.PreferencePayerRequest;
 import com.mercadopago.client.preference.PreferenceRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
+import com.mercadopago.net.MPResponse;
 import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.preference.Preference;
 import com.ouro.entity.Appointment;
@@ -121,6 +122,11 @@ public class PaymentService {
             if ("approved".equals(payment.getStatus())) {
                 return payment.getExternalReference();
             }
+        } catch (MPApiException e) {
+            MPResponse resp = e.getApiResponse();
+            log.error("Error MP al consultar pago {}. HTTP {}: {}", paymentId,
+                    resp != null ? resp.getStatusCode() : "?",
+                    resp != null ? resp.getContent() : e.getMessage());
         } catch (Exception e) {
             log.error("Error al consultar pago {} en MP: {}", paymentId, e.getMessage());
         }
