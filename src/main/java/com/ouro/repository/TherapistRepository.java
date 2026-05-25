@@ -11,9 +11,11 @@ import java.util.Optional;
 public interface TherapistRepository extends JpaRepository<Therapist, Integer> {
     
     Optional<Therapist> findByUserId(Integer userId);
-    
+
+    Optional<Therapist> findBySlug(String slug);
+
     List<Therapist> findBySpecialty(String specialty);
-    
+
     boolean existsByUserId(Integer userId);
 
     List<Therapist> findByApprovalStatus(Therapist.ApprovalStatus status);

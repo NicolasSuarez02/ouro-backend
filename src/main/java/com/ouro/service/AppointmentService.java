@@ -2,6 +2,7 @@ package com.ouro.service;
 
 import com.ouro.dto.AppointmentDTO;
 import com.ouro.entity.Appointment;
+import com.ouro.entity.TherapistSpecialty;
 import com.ouro.entity.TimeSlot;
 import com.ouro.entity.User;
 import com.ouro.repository.AppointmentRepository;
@@ -52,7 +53,7 @@ public class AppointmentService {
      * Retorna lista de fechas "yyyy-MM-dd".
      */
     @Transactional(readOnly = true)
-    public List<String> getDiasDisponiblesEnMes(Integer therapistId, int year, int month) {
+    public List<String> getDiasDisponiblesEnMes(Integer therapistId, int year, int month, String specialtyName) {
         LocalDate inicioMes = LocalDate.of(year, month, 1);
         LocalDate finMes = inicioMes.withDayOfMonth(inicioMes.lengthOfMonth());
 
@@ -61,7 +62,7 @@ public class AppointmentService {
 
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
-        int leadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
+        int leadHours = obtenerLeadHours(therapist, specialtyName);
         LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
 
         return timeSlotRepository
@@ -79,13 +80,13 @@ public class AppointmentService {
      * Slots FREE disponibles de un terapeuta para un día específico.
      */
     @Transactional(readOnly = true)
-    public List<AppointmentDTO.SlotResponse> getSlotsDisponiblesPorDia(Integer therapistId, LocalDate fecha) {
+    public List<AppointmentDTO.SlotResponse> getSlotsDisponiblesPorDia(Integer therapistId, LocalDate fecha, String specialtyName) {
         LocalDateTime desde = fecha.atStartOfDay();
         LocalDateTime hasta = fecha.atTime(23, 59, 59);
 
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
-        int leadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
+        int leadHours = obtenerLeadHours(therapist, specialtyName);
         LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
 
         return timeSlotRepository
@@ -96,6 +97,16 @@ public class AppointmentService {
                 .map(AppointmentDTO.SlotResponse::new)
                 .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
                 .collect(Collectors.toList());
+    }
+
+    private int obtenerLeadHours(com.ouro.entity.Therapist therapist, String specialtyName) {
+        int defaultHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
+        if (specialtyName == null || specialtyName.isBlank()) return defaultHours;
+        return therapist.getSpecialties().stream()
+                .filter(s -> s.getName().equalsIgnoreCase(specialtyName))
+                .findFirst()
+                .map(TherapistSpecialty::getMinBookingLeadHours)
+                .orElse(defaultHours);
     }
 
     /**
@@ -130,6 +141,9 @@ public class AppointmentService {
         appointment.setPriceAmountCents(precio != null ? precio : 0);
         appointment.setCurrency(slot.getTherapist().getPriceCurrency());
         appointment.setNotes(request.getNotes());
+        if (request.getSpecialtyName() != null && !request.getSpecialtyName().isBlank()) {
+            appointment.setSpecialtyName(request.getSpecialtyName());
+        }
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
 

@@ -13,8 +13,11 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Map;
 
 @Service
@@ -23,6 +26,7 @@ public class MercadoPagoOAuthService {
     private static final Logger log = LoggerFactory.getLogger(MercadoPagoOAuthService.class);
     private static final String MP_AUTH_URL = "https://auth.mercadopago.com/authorization";
     private static final String MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
+    private static final long STATE_TTL_SECONDS = 600;
 
     @Value("${mercadopago.client-id}")
     private String clientId;
@@ -33,6 +37,9 @@ public class MercadoPagoOAuthService {
     @Value("${app.backend.url}")
     private String backendUrl;
 
+    @Value("${app.jwt.secret}")
+    private String jwtSecret;
+
     private final TherapistRepository therapistRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -42,6 +49,11 @@ public class MercadoPagoOAuthService {
     }
 
     public String generarUrlAutorizacion(Integer userId) {
+        long ts = Instant.now().getEpochSecond();
+        String payload = userId + "." + ts;
+        String signature = hmacSha256(jwtSecret, payload);
+        String state = payload + "." + signature;
+
         String redirectUri = URLEncoder.encode(
                 backendUrl + "/api/therapists/mp-callback",
                 StandardCharsets.UTF_8
@@ -51,7 +63,40 @@ public class MercadoPagoOAuthService {
                 + "&response_type=code"
                 + "&platform_id=mp"
                 + "&redirect_uri=" + redirectUri
-                + "&state=" + userId;
+                + "&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
+    }
+
+    public Integer extraerUserIdDeState(String state) {
+        String[] parts = state.split("\\.", 3);
+        if (parts.length != 3) {
+            throw new RuntimeException("State OAuth inválido");
+        }
+        try {
+            long ts = Long.parseLong(parts[1]);
+            if (Instant.now().getEpochSecond() - ts > STATE_TTL_SECONDS) {
+                throw new RuntimeException("State OAuth expirado");
+            }
+            String expected = hmacSha256(jwtSecret, parts[0] + "." + parts[1]);
+            if (!expected.equals(parts[2])) {
+                throw new RuntimeException("Firma inválida en state OAuth");
+            }
+            return Integer.parseInt(parts[0]);
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("State OAuth mal formado");
+        }
+    }
+
+    private String hmacSha256(String key, String message) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error generando HMAC", e);
+        }
     }
 
     @Transactional

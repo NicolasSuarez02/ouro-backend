@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/timeslots")
-@CrossOrigin(origins = "*")
+
 public class TimeSlotController {
 
     private final TimeSlotRepository timeSlotRepository;

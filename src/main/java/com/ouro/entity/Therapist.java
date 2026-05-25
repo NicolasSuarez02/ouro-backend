@@ -4,6 +4,8 @@ import com.ouro.security.AesEncryptionConverter;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "therapist")
@@ -46,6 +48,12 @@ public class Therapist {
 
     @Column(name = "min_booking_lead_hours", nullable = false)
     private Integer minBookingLeadHours = 1;
+
+    @Column(length = 255, unique = true)
+    private String slug;
+
+    @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TherapistSpecialty> specialties = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -167,5 +175,21 @@ public class Therapist {
 
     public void setMinBookingLeadHours(Integer minBookingLeadHours) {
         this.minBookingLeadHours = minBookingLeadHours;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public List<TherapistSpecialty> getSpecialties() {
+        return specialties;
+    }
+
+    public void setSpecialties(List<TherapistSpecialty> specialties) {
+        this.specialties = specialties;
     }
 }

@@ -16,7 +16,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/appointments")
-@CrossOrigin(origins = "*")
+
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
@@ -31,8 +31,9 @@ public class AppointmentController {
     public ResponseEntity<List<String>> getAvailableDays(
             @RequestParam Integer therapistId,
             @RequestParam int year,
-            @RequestParam int month) {
-        List<String> dias = appointmentService.getDiasDisponiblesEnMes(therapistId, year, month);
+            @RequestParam int month,
+            @RequestParam(required = false) String specialty) {
+        List<String> dias = appointmentService.getDiasDisponiblesEnMes(therapistId, year, month, specialty);
         return new ResponseEntity<>(dias, HttpStatus.OK);
     }
 
@@ -40,10 +41,11 @@ public class AppointmentController {
     @GetMapping("/available-slots")
     public ResponseEntity<List<AppointmentDTO.SlotResponse>> getAvailableSlots(
             @RequestParam Integer therapistId,
-            @RequestParam String date) {
+            @RequestParam String date,
+            @RequestParam(required = false) String specialty) {
         LocalDate fecha = LocalDate.parse(date);
         List<AppointmentDTO.SlotResponse> slots =
-                appointmentService.getSlotsDisponiblesPorDia(therapistId, fecha);
+                appointmentService.getSlotsDisponiblesPorDia(therapistId, fecha, specialty);
         return new ResponseEntity<>(slots, HttpStatus.OK);
     }
 

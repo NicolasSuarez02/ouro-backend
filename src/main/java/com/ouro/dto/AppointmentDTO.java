@@ -15,6 +15,8 @@ public class AppointmentDTO {
 
         private String notes;
 
+        private String specialtyName;
+
         public BookAppointmentRequest() {
         }
 
@@ -33,6 +35,9 @@ public class AppointmentDTO {
         public void setNotes(String notes) {
             this.notes = notes;
         }
+
+        public String getSpecialtyName() { return specialtyName; }
+        public void setSpecialtyName(String specialtyName) { this.specialtyName = specialtyName; }
     }
 
     // Response de un turno
@@ -52,6 +57,7 @@ public class AppointmentDTO {
         private Integer priceAmountCents;
         private String currency;
         private String notes;
+        private String specialtyName;
         private String createdAt;
         private String zoomJoinUrl;
         // Solo se setea al crear el turno; no es un campo de la entidad
@@ -77,6 +83,7 @@ public class AppointmentDTO {
             this.notes = appointment.getNotes();
             this.createdAt = appointment.getCreatedAt() != null ? appointment.getCreatedAt().toString() : null;
             this.zoomJoinUrl = appointment.getZoomJoinUrl();
+            this.specialtyName = appointment.getSpecialtyName();
         }
 
         public Integer getId() {
@@ -190,6 +197,9 @@ public class AppointmentDTO {
         public void setNotes(String notes) {
             this.notes = notes;
         }
+
+        public String getSpecialtyName() { return specialtyName; }
+        public void setSpecialtyName(String specialtyName) { this.specialtyName = specialtyName; }
 
         public String getCreatedAt() {
             return createdAt;

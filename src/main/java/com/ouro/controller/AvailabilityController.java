@@ -15,7 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/availability")
-@CrossOrigin(origins = "*")
+
 public class AvailabilityController {
 
     private final AvailabilityService availabilityService;

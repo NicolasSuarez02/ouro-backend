@@ -20,7 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/therapists")
-@CrossOrigin(origins = "*")
+
 public class TherapistController {
 
     private final TherapistService therapistService;
@@ -66,7 +66,18 @@ public class TherapistController {
         }
     }
 
-    @GetMapping("/user/{userId}")
+
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<TherapistDTO.TherapistResponse> getTherapistBySlug(@PathVariable String slug) {
+        try {
+            TherapistDTO.TherapistResponse response = therapistService.getTherapistBySlug(slug);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+        }
+    }
+
+        @GetMapping("/user/{userId}")
     public ResponseEntity<TherapistDTO.TherapistResponse> getTherapistByUserId(@PathVariable Integer userId) {
         try {
             TherapistDTO.TherapistResponse response = therapistService.getTherapistByUserId(userId);
@@ -206,7 +217,7 @@ public class TherapistController {
             @RequestParam String code,
             @RequestParam String state) {
         try {
-            Integer userId = Integer.parseInt(state);
+            Integer userId = mpOAuthService.extraerUserIdDeState(state);
             mpOAuthService.procesarCallback(code, userId);
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header("Location", frontendUrl + "/dashboard?mp=success")

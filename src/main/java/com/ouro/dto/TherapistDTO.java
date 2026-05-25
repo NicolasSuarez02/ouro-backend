@@ -1,11 +1,32 @@
 package com.ouro.dto;
 
 import com.ouro.entity.Therapist;
+import com.ouro.entity.TherapistSpecialty;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 public class TherapistDTO {
+
+    public static class SpecialtyDTO {
+        private String name;
+        private Integer minBookingLeadHours;
+
+        public SpecialtyDTO() {}
+
+        public SpecialtyDTO(TherapistSpecialty s) {
+            this.name = s.getName();
+            this.minBookingLeadHours = s.getMinBookingLeadHours();
+        }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public Integer getMinBookingLeadHours() { return minBookingLeadHours; }
+        public void setMinBookingLeadHours(Integer minBookingLeadHours) { this.minBookingLeadHours = minBookingLeadHours; }
+    }
     
     // Request DTO para crear terapeuta
     public static class CreateTherapistRequest {
@@ -31,6 +52,8 @@ public class TherapistDTO {
         private String mpAccessToken;
 
         private Integer minBookingLeadHours;
+
+        private List<SpecialtyDTO> specialties;
 
         // Constructors
         public CreateTherapistRequest() {
@@ -100,6 +123,9 @@ public class TherapistDTO {
         public void setMinBookingLeadHours(Integer minBookingLeadHours) {
             this.minBookingLeadHours = minBookingLeadHours;
         }
+
+        public List<SpecialtyDTO> getSpecialties() { return specialties; }
+        public void setSpecialties(List<SpecialtyDTO> specialties) { this.specialties = specialties; }
     }
 
     // Request DTO para actualizar terapeuta
@@ -123,6 +149,8 @@ public class TherapistDTO {
         private String mpAccessToken;
 
         private Integer minBookingLeadHours;
+
+        private List<SpecialtyDTO> specialties;
 
         // Constructors
         public UpdateTherapistRequest() {
@@ -184,6 +212,9 @@ public class TherapistDTO {
         public void setMinBookingLeadHours(Integer minBookingLeadHours) {
             this.minBookingLeadHours = minBookingLeadHours;
         }
+
+        public List<SpecialtyDTO> getSpecialties() { return specialties; }
+        public void setSpecialties(List<SpecialtyDTO> specialties) { this.specialties = specialties; }
     }
 
     // Response DTO
@@ -205,6 +236,8 @@ public class TherapistDTO {
         // true si el terapeuta ya configuró su token de MP (no devolvemos el token en claro)
         private boolean mpTokenConfigurado;
         private Integer minBookingLeadHours;
+        private String slug;
+        private List<SpecialtyDTO> specialties;
         // Calificación promedio (1-5), null si no tiene calificaciones aún
         private Double averageRating;
         private Integer ratingCount;
@@ -229,6 +262,10 @@ public class TherapistDTO {
             this.updatedAt = therapist.getUpdatedAt() != null ? therapist.getUpdatedAt().toString() : null;
             this.mpTokenConfigurado = therapist.getMpAccessToken() != null && !therapist.getMpAccessToken().isBlank();
             this.minBookingLeadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
+            this.slug = therapist.getSlug();
+            this.specialties = therapist.getSpecialties() != null
+                    ? therapist.getSpecialties().stream().map(SpecialtyDTO::new).collect(Collectors.toList())
+                    : List.of();
         }
 
         public TherapistResponse(Therapist therapist, Double averageRating, long ratingCount) {
@@ -375,5 +412,11 @@ public class TherapistDTO {
         public void setRatingCount(Integer ratingCount) {
             this.ratingCount = ratingCount;
         }
+
+        public String getSlug() { return slug; }
+        public void setSlug(String slug) { this.slug = slug; }
+
+        public List<SpecialtyDTO> getSpecialties() { return specialties; }
+        public void setSpecialties(List<SpecialtyDTO> specialties) { this.specialties = specialties; }
     }
 }
