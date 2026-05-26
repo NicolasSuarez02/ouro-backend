@@ -36,19 +36,19 @@ public class PaymentService {
     @Value("${app.backend.url}")
     private String backendUrl;
 
-    private String resolverToken(String tokenTerapeuta) {
-        if (tokenTerapeuta == null || tokenTerapeuta.isBlank()) {
+    private String resolveToken(String therapistToken) {
+        if (therapistToken == null || therapistToken.isBlank()) {
             throw new IllegalStateException("El terapeuta no tiene configurado su token de Mercado Pago.");
         }
-        return tokenTerapeuta;
+        return therapistToken;
     }
 
     /**
      * Crea una preferencia de pago en Mercado Pago usando el token del terapeuta.
      * La URL del webhook incluye el therapistId para poder identificar la cuenta en el callback.
      */
-    public String crearPreferenciaMP(Appointment appointment, String tokenTerapeuta) throws MPException, MPApiException {
-        String token = resolverToken(tokenTerapeuta);
+    public String createPaymentPreference(Appointment appointment, String therapistToken) throws MPException, MPApiException {
+        String token = resolveToken(therapistToken);
         MPRequestOptions requestOptions = MPRequestOptions.builder()
                 .accessToken(token)
                 .build();
@@ -92,7 +92,7 @@ public class PaymentService {
     /**
      * Extrae el ID del pago del body del webhook de Mercado Pago.
      */
-    public Long extraerPagoIdDeWebhook(Map<String, Object> body) {
+    public Long extractPaymentIdFromWebhook(Map<String, Object> body) {
         Object data = body.get("data");
         if (data instanceof Map<?, ?> dataMap) {
             Object id = dataMap.get("id");
@@ -111,8 +111,8 @@ public class PaymentService {
      * Obtiene el external_reference de un pago aprobado usando el token del terapeuta.
      * Retorna null si el pago no está aprobado o si hay un error.
      */
-    public String obtenerExternalReferenceDeAprobado(Long paymentId, String tokenTerapeuta) {
-        String token = resolverToken(tokenTerapeuta);
+    public String getExternalReferenceIfApproved(Long paymentId, String therapistToken) {
+        String token = resolveToken(therapistToken);
         try {
             MPRequestOptions requestOptions = MPRequestOptions.builder()
                     .accessToken(token)

@@ -40,7 +40,7 @@ public class ZoomService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    private String obtenerAccessToken() {
+    private String getAccessToken() {
         String credentials = clientId + ":" + clientSecret;
         String encoded = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
 
@@ -62,9 +62,9 @@ public class ZoomService {
      * Crea un meeting de Zoom para el turno dado.
      * Retorna el join_url del meeting, o null si falla.
      */
-    public String crearMeeting(Appointment appointment) {
+    public String createMeeting(Appointment appointment) {
         try {
-            String accessToken = obtenerAccessToken();
+            String accessToken = getAccessToken();
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + accessToken);
@@ -74,7 +74,7 @@ public class ZoomService {
                     .atZone(ZoneId.of(TIMEZONE))
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
 
-            long duracionMinutos = java.time.Duration
+            long durationMinutes = java.time.Duration
                     .between(appointment.getStartAt(), appointment.getEndAt())
                     .toMinutes();
 
@@ -87,7 +87,7 @@ public class ZoomService {
             meetingBody.put("topic", "Sesión con " + appointment.getTherapist().getUser().getFullName());
             meetingBody.put("type", 2); // meeting programado
             meetingBody.put("start_time", startTime);
-            meetingBody.put("duration", duracionMinutos > 0 ? duracionMinutos : 60);
+            meetingBody.put("duration", durationMinutes > 0 ? durationMinutes : 60);
             meetingBody.put("timezone", TIMEZONE);
             meetingBody.put("settings", settings);
 

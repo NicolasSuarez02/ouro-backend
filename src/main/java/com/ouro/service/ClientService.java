@@ -104,9 +104,19 @@ public class ClientService {
     }
     
     @Transactional
+    public ClientDTO.ClientResponse updateClientByUserId(Integer userId, ClientDTO.UpdateClientRequest request) {
+        Client c = clientRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Perfil de cliente no encontrado"));
+        return applyUpdate(c, request);
+    }
+
+    @Transactional
     public ClientDTO.ClientResponse updateClient(Integer id, ClientDTO.UpdateClientRequest request) {
         Client c = clientRepository.findById(id).orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
-        
+        return applyUpdate(c, request);
+    }
+
+    private ClientDTO.ClientResponse applyUpdate(Client c, ClientDTO.UpdateClientRequest request) {
         if (request.getDateOfBirth() != null) {
             try {
                 c.setDateOfBirth(Timestamp.valueOf(request.getDateOfBirth()));
@@ -114,7 +124,7 @@ public class ClientService {
                 throw new RuntimeException("Formato de fecha inválido");
             }
         }
-        
+
         if (request.getTimeOfBirth() != null) {
             try {
                 c.setTimeOfBirth(LocalTime.parse(request.getTimeOfBirth()));
@@ -122,7 +132,7 @@ public class ClientService {
                 throw new RuntimeException("Formato de hora inválido");
             }
         }
-        
+
         return new ClientDTO.ClientResponse(clientRepository.save(c));
     }
     

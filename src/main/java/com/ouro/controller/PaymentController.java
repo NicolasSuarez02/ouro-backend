@@ -48,7 +48,7 @@ public class PaymentController {
      * Permite usar el access token propio del terapeuta para consultar el pago.
      */
     @PostMapping("/webhook/{therapistId}")
-    public ResponseEntity<Void> recibirWebhookTerapeuta(
+    public ResponseEntity<Void> receiveTherapistWebhook(
             @PathVariable Integer therapistId,
             @RequestBody Map<String, Object> body,
             HttpServletRequest httpRequest) {
@@ -57,20 +57,20 @@ public class PaymentController {
             log.info("Webhook MP recibido. therapistId={} type={}", therapistId, type);
 
             if ("payment".equals(type)) {
-                Long paymentId = paymentService.extraerPagoIdDeWebhook(body);
+                Long paymentId = paymentService.extractPaymentIdFromWebhook(body);
                 if (paymentId != null) {
-                    if (!verificarFirmaWebhook(httpRequest, paymentId.toString())) {
+                    if (!verifyWebhookSignature(httpRequest, paymentId.toString())) {
                         log.error("Firma webhook inválida, ignorando. therapistId={} paymentId={}", therapistId, paymentId);
                         return ResponseEntity.ok().build();
                     }
-                    String tokenTerapeuta = therapistRepository.findById(therapistId)
+                    String therapistToken = therapistRepository.findById(therapistId)
                             .map(Therapist::getMpAccessToken)
                             .orElse(null);
 
-                    String externalRef = paymentService.obtenerExternalReferenceDeAprobado(paymentId, tokenTerapeuta);
+                    String externalRef = paymentService.getExternalReferenceIfApproved(paymentId, therapistToken);
                     if (externalRef != null) {
                         Integer appointmentId = Integer.parseInt(externalRef);
-                        appointmentService.confirmarPago(appointmentId);
+                        appointmentService.confirmPayment(appointmentId);
                         log.info("Turno {} confirmado tras pago MP {} (terapeuta {})", appointmentId, paymentId, therapistId);
                     }
                 }
@@ -87,23 +87,23 @@ public class PaymentController {
      * Mantenido por compatibilidad con turnos creados antes de la integración por terapeuta.
      */
     @PostMapping("/webhook")
-    public ResponseEntity<Void> recibirWebhook(@RequestBody Map<String, Object> body,
+    public ResponseEntity<Void> receiveWebhook(@RequestBody Map<String, Object> body,
             HttpServletRequest httpRequest) {
         try {
             String type = (String) body.get("type");
             log.info("Webhook MP genérico recibido. type={}", type);
 
             if ("payment".equals(type)) {
-                Long paymentId = paymentService.extraerPagoIdDeWebhook(body);
+                Long paymentId = paymentService.extractPaymentIdFromWebhook(body);
                 if (paymentId != null) {
-                    if (!verificarFirmaWebhook(httpRequest, paymentId.toString())) {
+                    if (!verifyWebhookSignature(httpRequest, paymentId.toString())) {
                         log.error("Firma webhook inválida, ignorando. paymentId={}", paymentId);
                         return ResponseEntity.ok().build();
                     }
-                    String externalRef = paymentService.obtenerExternalReferenceDeAprobado(paymentId, null);
+                    String externalRef = paymentService.getExternalReferenceIfApproved(paymentId, null);
                     if (externalRef != null) {
                         Integer appointmentId = Integer.parseInt(externalRef);
-                        appointmentService.confirmarPago(appointmentId);
+                        appointmentService.confirmPayment(appointmentId);
                         log.info("Turno {} confirmado tras pago MP {} (webhook genérico)", appointmentId, paymentId);
                     }
                 }
@@ -115,12 +115,12 @@ public class PaymentController {
     }
 
     @PostMapping("/simular-pago")
-    public ResponseEntity<Void> simularPago(@RequestParam Integer appointmentId) {
-        if (!esAdmin()) {
+    public ResponseEntity<Void> simulatePayment(@RequestParam Integer appointmentId) {
+        if (!isAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         try {
-            appointmentService.confirmarPago(appointmentId);
+            appointmentService.confirmPayment(appointmentId);
             log.info("Pago simulado para turno {}", appointmentId);
         } catch (Exception e) {
             log.error("Error al simular pago para turno {}: {}", appointmentId, e.getMessage());
@@ -128,7 +128,7 @@ public class PaymentController {
         return ResponseEntity.ok().build();
     }
 
-    private boolean esAdmin() {
+    private boolean isAdmin() {
         return SecurityContextHolder.getContext().getAuthentication()
                 .getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
@@ -140,11 +140,11 @@ public class PaymentController {
     }
 
     @GetMapping("/webhook/{therapistId}")
-    public ResponseEntity<Void> webhookPingTerapeuta(@PathVariable Integer therapistId) {
+    public ResponseEntity<Void> webhookPingTherapist(@PathVariable Integer therapistId) {
         return ResponseEntity.ok().build();
     }
 
-    private boolean verificarFirmaWebhook(HttpServletRequest request, String dataId) {
+    private boolean verifyWebhookSignature(HttpServletRequest request, String dataId) {
         String xSig = request.getHeader("x-signature");
         String xRequestId = request.getHeader("x-request-id");
         if (xSig == null) {

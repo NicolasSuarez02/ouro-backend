@@ -226,6 +226,69 @@ public class EmailService {
     }
     
     /**
+     * Notificación al terapeuta con todos los datos del cliente cuando se confirma un turno
+     */
+    public void sendNewAppointmentNotificationToTherapist(
+            String therapistEmail,
+            String clientNombre,
+            String clientEmail,
+            String clientTelefono,
+            String clientFechaNac,
+            String clientHoraNac,
+            String especialidad,
+            String fechaTurno,
+            String horaTurno,
+            String zoomLink) {
+
+        String subject = "Nuevo turno confirmado – " + clientNombre;
+
+        String zoomSection = (zoomLink != null && !zoomLink.isBlank())
+                ? "<li><strong>Link Zoom:</strong> <a href=\"" + zoomLink + "\">Unirse a la reunión</a></li>"
+                : "<li><strong>Link Zoom:</strong> Se generará próximamente</li>";
+
+        String birthInfo = (clientFechaNac != null && !clientFechaNac.isBlank())
+                ? clientFechaNac + (clientHoraNac != null && !clientHoraNac.isBlank() ? " a las " + clientHoraNac + " hs" : "")
+                : "No informado";
+
+        String body = String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #4A90E2;">¡Nuevo turno confirmado!</h2>
+                    <p>Hola, te informamos que se confirmó un nuevo turno en tu agenda.</p>
+                    <h3 style="color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px;">Datos del turno</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li><strong>Fecha:</strong> %s</li>
+                        <li><strong>Hora:</strong> %s hs</li>
+                        %s
+                        %s
+                    </ul>
+                    <h3 style="color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top: 20px;">Datos del cliente</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li><strong>Nombre:</strong> %s</li>
+                        <li><strong>Email:</strong> %s</li>
+                        <li><strong>Teléfono:</strong> %s</li>
+                        <li><strong>Fecha y hora de nacimiento:</strong> %s</li>
+                    </ul>
+                    <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+                    <p style="font-size: 12px; color: #999; text-align: center;">Ouro – Tu bienestar es nuestra prioridad</p>
+                </div>
+            </body>
+            </html>
+            """,
+                fechaTurno, horaTurno, zoomSection,
+                (especialidad != null && !especialidad.isBlank())
+                        ? "<li><strong>Tipo de sesión:</strong> " + especialidad + "</li>"
+                        : "",
+                clientNombre, clientEmail, clientTelefono, birthInfo
+        );
+
+        EmailDTO.SendEmailRequest request = new EmailDTO.SendEmailRequest(therapistEmail, subject, body);
+        request.setHtml(true);
+        sendEmail(request);
+    }
+
+    /**
      * Enviar email de recordatorio de cita
      */
     public EmailDTO.EmailResponse sendAppointmentReminder(

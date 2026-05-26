@@ -41,23 +41,23 @@ public class RatingService {
      * Puede calificar si: tuvo al menos un turno COMPLETED con ese terapeuta y aún no lo calificó.
      */
     @Transactional(readOnly = true)
-    public RatingDTO.RatingEstado obtenerEstado(Integer therapistId, Integer userId) {
-        Optional<Rating> existente = ratingRepository.findByUserIdAndTherapistId(userId, therapistId);
+    public RatingDTO.RatingEstado getStatus(Integer therapistId, Integer userId) {
+        Optional<Rating> existing = ratingRepository.findByUserIdAndTherapistId(userId, therapistId);
 
-        if (existente.isPresent()) {
-            return new RatingDTO.RatingEstado(false, new RatingDTO.RatingResponse(existente.get()));
+        if (existing.isPresent()) {
+            return new RatingDTO.RatingEstado(false, new RatingDTO.RatingResponse(existing.get()));
         }
 
         // Verificar si tiene algún turno completado con este terapeuta
-        boolean tieneTurnoCompletado = appointmentRepository.findByUserId(userId).stream()
+        boolean hasCompletedAppointment = appointmentRepository.findByUserId(userId).stream()
                 .anyMatch(a -> a.getTherapist().getId().equals(therapistId)
                         && a.getStatus() == Appointment.AppointmentStatus.COMPLETED);
 
-        return new RatingDTO.RatingEstado(tieneTurnoCompletado, null);
+        return new RatingDTO.RatingEstado(hasCompletedAppointment, null);
     }
 
     @Transactional
-    public RatingDTO.RatingResponse crearCalificacion(RatingDTO.CreateRatingRequest request, Integer userId) {
+    public RatingDTO.RatingResponse createRating(RatingDTO.CreateRatingRequest request, Integer userId) {
         Therapist therapist = therapistRepository.findById(request.getTherapistId())
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
 
@@ -75,11 +75,11 @@ public class RatingService {
         }
 
         // Debe tener al menos un turno completado
-        boolean tieneTurnoCompletado = appointmentRepository.findByUserId(user.getId()).stream()
+        boolean hasCompletedAppointment = appointmentRepository.findByUserId(user.getId()).stream()
                 .anyMatch(a -> a.getTherapist().getId().equals(therapist.getId())
                         && a.getStatus() == Appointment.AppointmentStatus.COMPLETED);
 
-        if (!tieneTurnoCompletado) {
+        if (!hasCompletedAppointment) {
             throw new RuntimeException("Solo podés calificar a terapeutas con quienes tuviste un turno completado");
         }
 
@@ -93,7 +93,7 @@ public class RatingService {
     }
 
     @Transactional(readOnly = true)
-    public List<RatingDTO.RatingResponse> getCalificacionesPorTerapeuta(Integer therapistId) {
+    public List<RatingDTO.RatingResponse> getRatingsByTherapist(Integer therapistId) {
         return ratingRepository.findByTherapistIdOrderByCreatedAtDesc(therapistId).stream()
                 .map(RatingDTO.RatingResponse::new)
                 .collect(Collectors.toList());

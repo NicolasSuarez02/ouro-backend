@@ -36,15 +36,15 @@ public class AppointmentScheduler {
      */
     @Scheduled(fixedDelay = 3_600_000)
     @Transactional
-    public void cancelarTurnosVencidos() {
-        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
-        List<Appointment> vencidos = appointmentRepository.findPendingPaymentBefore(ahora);
+    public void cancelExpiredAppointments() {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        List<Appointment> expired = appointmentRepository.findPendingPaymentBefore(now);
 
-        if (vencidos.isEmpty()) return;
+        if (expired.isEmpty()) return;
 
-        log.info("Cancelando {} turno(s) PENDING_PAYMENT vencidos", vencidos.size());
+        log.info("Cancelando {} turno(s) PENDING_PAYMENT vencidos", expired.size());
 
-        for (Appointment appt : vencidos) {
+        for (Appointment appt : expired) {
             appt.setStatus(Appointment.AppointmentStatus.CANCELLED);
             appointmentRepository.save(appt);
 

@@ -50,12 +50,12 @@ public class TherapistService {
     }
 
     @PostConstruct
-    public void generarSlugsFaltantes() {
+    public void generateMissingSlugs() {
         try {
             therapistRepository.findAll().forEach(t -> {
                 if (t.getSlug() == null || t.getSlug().isBlank()) {
-                    String nombre = t.getUser() != null ? t.getUser().getFullName() : null;
-                    String slug = generarSlugUnico(nombre, t.getId());
+                    String name = t.getUser() != null ? t.getUser().getFullName() : null;
+                    String slug = generateUniqueSlug(name, t.getId());
                     if (slug != null) {
                         t.setSlug(slug);
                         therapistRepository.save(t);
@@ -74,9 +74,9 @@ public class TherapistService {
         return new TherapistDTO.TherapistResponse(therapist, avg, count);
     }
 
-    private String generarSlug(String nombre) {
-        if (nombre == null || nombre.isBlank()) return null;
-        String normalized = Normalizer.normalize(nombre, Normalizer.Form.NFD);
+    private String generateSlug(String name) {
+        if (name == null || name.isBlank()) return null;
+        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD);
         return normalized
                 .replaceAll("[^\\p{ASCII}]", "")
                 .toLowerCase()
@@ -86,8 +86,8 @@ public class TherapistService {
                 .replaceAll("-+", "-");
     }
 
-    private String generarSlugUnico(String nombre, Integer therapistId) {
-        String base = generarSlug(nombre);
+    private String generateUniqueSlug(String name, Integer therapistId) {
+        String base = generateSlug(name);
         if (base == null) return null;
         String candidate = base;
         int i = 2;
@@ -138,7 +138,7 @@ public class TherapistService {
 
         Therapist saved = therapistRepository.save(therapist);
 
-        String slug = generarSlugUnico(user.getFullName(), saved.getId());
+        String slug = generateUniqueSlug(user.getFullName(), saved.getId());
         saved.setSlug(slug);
 
         if (request.getSpecialties() != null && !request.getSpecialties().isEmpty()) {
@@ -150,6 +150,9 @@ public class TherapistService {
                 saved.getSpecialties().add(sp);
             }
         }
+
+        // La especialidad principal siempre debe estar en la lista
+        syncPrimarySpecialty(saved);
 
         return toResponse(therapistRepository.save(saved));
     }
@@ -192,7 +195,7 @@ public class TherapistService {
 
     @Transactional(readOnly = true)
     public List<TherapistDTO.TherapistResponse> getPendingTherapists(Integer adminUserId) {
-        verificarAdmin(adminUserId);
+        verifyAdmin(adminUserId);
         return therapistRepository.findByApprovalStatus(Therapist.ApprovalStatus.PENDING).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -200,7 +203,7 @@ public class TherapistService {
 
     @Transactional
     public TherapistDTO.TherapistResponse approveTherapist(Integer therapistId, Integer adminUserId) {
-        verificarAdmin(adminUserId);
+        verifyAdmin(adminUserId);
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
         therapist.setApprovalStatus(Therapist.ApprovalStatus.APPROVED);
@@ -209,14 +212,14 @@ public class TherapistService {
 
     @Transactional
     public TherapistDTO.TherapistResponse rejectTherapist(Integer therapistId, Integer adminUserId) {
-        verificarAdmin(adminUserId);
+        verifyAdmin(adminUserId);
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
         therapist.setApprovalStatus(Therapist.ApprovalStatus.REJECTED);
         return toResponse(therapistRepository.save(therapist));
     }
 
-    private void verificarAdmin(Integer adminUserId) {
+    private void verifyAdmin(Integer adminUserId) {
         User admin = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + adminUserId));
         if (admin.getRole() != User.Role.ADMIN) {
@@ -277,12 +280,29 @@ public class TherapistService {
             }
         }
 
+        // La especialidad principal siempre debe estar en la lista
+        syncPrimarySpecialty(therapist);
+
         return toResponse(therapistRepository.save(therapist));
+    }
+
+    private void syncPrimarySpecialty(Therapist therapist) {
+        String primary = therapist.getSpecialty();
+        if (primary == null || primary.isBlank()) return;
+        boolean present = therapist.getSpecialties().stream()
+                .anyMatch(s -> s.getName().equalsIgnoreCase(primary.trim()));
+        if (!present) {
+            TherapistSpecialty sp = new TherapistSpecialty();
+            sp.setTherapist(therapist);
+            sp.setName(primary.trim());
+            sp.setMinBookingLeadHours(therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1);
+            therapist.getSpecialties().add(0, sp);
+        }
     }
 
     @Transactional
     public void deleteTherapist(Integer id, Integer requestingUserId) {
-        verificarAdmin(requestingUserId);
+        verifyAdmin(requestingUserId);
         if (!therapistRepository.existsById(id)) {
             throw new RuntimeException("Terapeuta no encontrado con id: " + id);
         }
@@ -290,19 +310,19 @@ public class TherapistService {
     }
 
     @Transactional
-    public String uploadPhoto(Integer userId, MultipartFile foto) {
+    public String uploadPhoto(Integer userId, MultipartFile photo) {
         userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
 
-        if (foto == null || foto.isEmpty()) {
+        if (photo == null || photo.isEmpty()) {
             throw new RuntimeException("No se recibió ningún archivo");
         }
 
-        String contentType = foto.getContentType();
+        String contentType = photo.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new RuntimeException("Solo se permiten archivos de imagen");
         }
 
-        return storageService.guardarFoto(foto);
+        return storageService.savePhoto(photo);
     }
 }

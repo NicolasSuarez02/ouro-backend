@@ -22,14 +22,14 @@ public class StorageService {
      * Sube un archivo de recurso a Cloudinary.
      * Retorna el public_id para gestión posterior (eliminación).
      */
-    public String guardar(MultipartFile archivo, Resource.ResourceCategory categoria) {
+    public String save(MultipartFile file, Resource.ResourceCategory category) {
         try {
-            Map resultado = cloudinary.uploader().upload(archivo.getBytes(),
+            Map result = cloudinary.uploader().upload(file.getBytes(),
                 ObjectUtils.asMap(
-                    "folder", "ouro/" + categoria.name().toLowerCase(),
+                    "folder", "ouro/" + category.name().toLowerCase(),
                     "resource_type", "auto"
                 ));
-            return (String) resultado.get("public_id");
+            return (String) result.get("public_id");
         } catch (IOException e) {
             throw new RuntimeException("No se pudo subir el archivo a Cloudinary", e);
         }
@@ -39,14 +39,14 @@ public class StorageService {
      * Sube una foto de perfil de terapeuta a Cloudinary.
      * Retorna la URL segura directamente para guardar en DB.
      */
-    public String guardarFoto(MultipartFile foto) {
+    public String savePhoto(MultipartFile photo) {
         try {
-            Map resultado = cloudinary.uploader().upload(foto.getBytes(),
+            Map result = cloudinary.uploader().upload(photo.getBytes(),
                 ObjectUtils.asMap(
                     "folder", "ouro/photos",
                     "resource_type", "image"
                 ));
-            return (String) resultado.get("secure_url");
+            return (String) result.get("secure_url");
         } catch (IOException e) {
             throw new RuntimeException("No se pudo subir la foto a Cloudinary", e);
         }
@@ -56,7 +56,7 @@ public class StorageService {
      * Retorna la URL pública de un archivo por su public_id.
      * Usado por ResourceService para guardar filePath en DB.
      */
-    public String getRutaRelativa(Resource.ResourceCategory categoria, String publicId) {
+    public String getRelativePath(Resource.ResourceCategory category, String publicId) {
         return cloudinary.url().secure(true).resourceType("auto").generate(publicId);
     }
 
@@ -64,8 +64,8 @@ public class StorageService {
      * Elimina un archivo de Cloudinary.
      * Usa el mimeType para determinar el resource_type correcto.
      */
-    public void eliminar(String publicId, String mimeType) {
-        String resourceType = resolverResourceType(mimeType);
+    public void delete(String publicId, String mimeType) {
+        String resourceType = resolveResourceType(mimeType);
         try {
             cloudinary.uploader().destroy(publicId,
                 ObjectUtils.asMap("resource_type", resourceType));
@@ -74,7 +74,7 @@ public class StorageService {
         }
     }
 
-    private String resolverResourceType(String mimeType) {
+    private String resolveResourceType(String mimeType) {
         if (mimeType == null) return "raw";
         if (mimeType.startsWith("image/")) return "image";
         if (mimeType.startsWith("video/")) return "video";

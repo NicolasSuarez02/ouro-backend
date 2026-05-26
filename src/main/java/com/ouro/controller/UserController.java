@@ -55,7 +55,7 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> verifyEmail(@RequestParam String token) {
         try {
             User user = userService.verifyEmail(token);
-            String jwtToken = jwtService.generarToken(user);
+            String jwtToken = jwtService.generateToken(user);
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("message", "Email verificado exitosamente");
@@ -89,7 +89,7 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody UserDTO.LoginRequest request,
                                                      HttpServletRequest httpRequest) {
-        String clientIp = obtenerIp(httpRequest);
+        String clientIp = getClientIp(httpRequest);
         if (!rateLimiterService.tryConsumeLogin(clientIp)) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
@@ -99,7 +99,7 @@ public class UserController {
 
         try {
             User user = userService.login(request.getEmail(), request.getPassword());
-            String token = jwtService.generarToken(user);
+            String token = jwtService.generateToken(user);
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
@@ -184,14 +184,14 @@ public class UserController {
      * Lista paginada y filtrada de usuarios — solo para ADMIN (verificado por JWT).
      */
     @GetMapping("/admin")
-    public ResponseEntity<Map<String, Object>> getAllUsersPaginados(
+    public ResponseEntity<Map<String, Object>> getAllUsersPaginated(
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "") String role,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         try {
             Integer adminUserId = currentUserId();
-            Map<String, Object> result = userService.getAllUsersPaginados(adminUserId, search, role, page, size);
+            Map<String, Object> result = userService.getAllUsersPaginated(adminUserId, search, role, page, size);
             return new ResponseEntity<>(result, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -248,7 +248,7 @@ public class UserController {
         return (Integer) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 
-    private String obtenerIp(HttpServletRequest request) {
+    private String getClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             return forwarded.split(",")[0].trim();

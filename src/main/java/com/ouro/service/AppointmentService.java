@@ -2,6 +2,7 @@ package com.ouro.service;
 
 import com.ouro.dto.AppointmentDTO;
 import com.ouro.entity.Appointment;
+import com.ouro.entity.Client;
 import com.ouro.entity.TherapistSpecialty;
 import com.ouro.entity.TimeSlot;
 import com.ouro.entity.User;
@@ -17,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,6 +35,11 @@ public class AppointmentService {
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ZoomService zoomService;
+    private final EmailService emailService;
+
+    private static final ZoneId ART = ZoneId.of("America/Argentina/Buenos_Aires");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
     @Autowired
     public AppointmentService(AppointmentRepository appointmentRepository,
@@ -39,13 +47,15 @@ public class AppointmentService {
                               TherapistRepository therapistRepository,
                               UserRepository userRepository,
                               PaymentService paymentService,
-                              ZoomService zoomService) {
+                              ZoomService zoomService,
+                              EmailService emailService) {
         this.appointmentRepository = appointmentRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.therapistRepository = therapistRepository;
         this.userRepository = userRepository;
         this.paymentService = paymentService;
         this.zoomService = zoomService;
+        this.emailService = emailService;
     }
 
     /**
@@ -53,21 +63,21 @@ public class AppointmentService {
      * Retorna lista de fechas "yyyy-MM-dd".
      */
     @Transactional(readOnly = true)
-    public List<String> getDiasDisponiblesEnMes(Integer therapistId, int year, int month, String specialtyName) {
-        LocalDate inicioMes = LocalDate.of(year, month, 1);
-        LocalDate finMes = inicioMes.withDayOfMonth(inicioMes.lengthOfMonth());
+    public List<String> getAvailableDaysInMonth(Integer therapistId, int year, int month, String specialtyName) {
+        LocalDate startOfMonth = LocalDate.of(year, month, 1);
+        LocalDate endOfMonth = startOfMonth.withDayOfMonth(startOfMonth.lengthOfMonth());
 
-        LocalDateTime desde = inicioMes.atStartOfDay();
-        LocalDateTime hasta = finMes.atTime(23, 59, 59);
+        LocalDateTime from = startOfMonth.atStartOfDay();
+        LocalDateTime until = endOfMonth.atTime(23, 59, 59);
 
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
-        int leadHours = obtenerLeadHours(therapist, specialtyName);
+        int leadHours = getLeadHours(therapist, specialtyName);
         LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
 
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
-                        therapistId, TimeSlot.SlotStatus.FREE, desde, hasta)
+                        therapistId, TimeSlot.SlotStatus.FREE, from, until)
                 .stream()
                 .filter(slot -> slot.getStartAt().isAfter(minStartAt))
                 .map(slot -> slot.getStartAt().toLocalDate().toString())
@@ -80,18 +90,18 @@ public class AppointmentService {
      * Slots FREE disponibles de un terapeuta para un día específico.
      */
     @Transactional(readOnly = true)
-    public List<AppointmentDTO.SlotResponse> getSlotsDisponiblesPorDia(Integer therapistId, LocalDate fecha, String specialtyName) {
-        LocalDateTime desde = fecha.atStartOfDay();
-        LocalDateTime hasta = fecha.atTime(23, 59, 59);
+    public List<AppointmentDTO.SlotResponse> getAvailableSlotsForDay(Integer therapistId, LocalDate date, String specialtyName) {
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime until = date.atTime(23, 59, 59);
 
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
-        int leadHours = obtenerLeadHours(therapist, specialtyName);
+        int leadHours = getLeadHours(therapist, specialtyName);
         LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
 
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
-                        therapistId, TimeSlot.SlotStatus.FREE, desde, hasta)
+                        therapistId, TimeSlot.SlotStatus.FREE, from, until)
                 .stream()
                 .filter(slot -> slot.getStartAt().isAfter(minStartAt))
                 .map(AppointmentDTO.SlotResponse::new)
@@ -99,7 +109,70 @@ public class AppointmentService {
                 .collect(Collectors.toList());
     }
 
-    private int obtenerLeadHours(com.ouro.entity.Therapist therapist, String specialtyName) {
+    /**
+     * Regenera la URL de pago para un turno que está en PENDING_PAYMENT.
+     * Solo puede pedirlo el usuario dueño del turno.
+     */
+    @Transactional(readOnly = true)
+    public String getPaymentLink(Integer appointmentId, Integer userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Turno no encontrado"));
+
+        if (!appointment.getUser().getId().equals(userId)) {
+            throw new RuntimeException("No tenés permiso para ver este turno");
+        }
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING_PAYMENT) {
+            throw new RuntimeException("El turno no está pendiente de pago");
+        }
+
+        try {
+            String therapistToken = appointment.getTherapist().getMpAccessToken();
+            return paymentService.createPaymentPreference(appointment, therapistToken);
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo generar el link de pago: " + e.getMessage());
+        }
+    }
+
+    private void notifyTherapistOfNewAppointment(Appointment appointment) {
+        try {
+            User client = appointment.getUser();
+            Client clientProfile = client.getClient();
+
+            String birthDate = null;
+            String birthTime = null;
+            if (clientProfile != null) {
+                if (clientProfile.getDateOfBirth() != null) {
+                    birthDate = clientProfile.getDateOfBirth().toLocalDateTime().toLocalDate()
+                            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                }
+                if (clientProfile.getTimeOfBirth() != null) {
+                    birthTime = clientProfile.getTimeOfBirth().format(TIME_FMT);
+                }
+            }
+
+            String appointmentDate = appointment.getStartAt().atZone(ZoneOffset.UTC)
+                    .withZoneSameInstant(ART).format(DATE_FMT);
+            String appointmentTime = appointment.getStartAt().atZone(ZoneOffset.UTC)
+                    .withZoneSameInstant(ART).format(TIME_FMT);
+
+            emailService.sendNewAppointmentNotificationToTherapist(
+                    appointment.getTherapist().getUser().getEmail(),
+                    client.getFullName(),
+                    client.getEmail(),
+                    client.getPhone(),
+                    birthDate,
+                    birthTime,
+                    appointment.getSpecialtyName(),
+                    appointmentDate,
+                    appointmentTime,
+                    appointment.getZoomJoinUrl()
+            );
+        } catch (Exception e) {
+            log.error("Error al notificar al terapeuta sobre turno {}: {}", appointment.getId(), e.getMessage());
+        }
+    }
+
+    private int getLeadHours(com.ouro.entity.Therapist therapist, String specialtyName) {
         int defaultHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
         if (specialtyName == null || specialtyName.isBlank()) return defaultHours;
         return therapist.getSpecialties().stream()
@@ -116,7 +189,7 @@ public class AppointmentService {
      * El userId viene del JWT (extraído en el controller).
      */
     @Transactional
-    public AppointmentDTO.AppointmentResponse reservarTurno(AppointmentDTO.BookAppointmentRequest request, Integer userId) {
+    public AppointmentDTO.AppointmentResponse bookAppointment(AppointmentDTO.BookAppointmentRequest request, Integer userId) {
         TimeSlot slot = timeSlotRepository.findByIdForUpdate(request.getTimeSlotId())
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + request.getTimeSlotId()));
 
@@ -127,18 +200,18 @@ public class AppointmentService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
 
-        Integer precio = slot.getTherapist().getPriceAmountCents();
-        boolean tienePrecio = precio != null && precio > 0;
+        Integer price = slot.getTherapist().getPriceAmountCents();
+        boolean hasPrice = price != null && price > 0;
 
         Appointment appointment = new Appointment();
         appointment.setTherapist(slot.getTherapist());
         appointment.setUser(user);
         appointment.setStartAt(slot.getStartAt());
         appointment.setEndAt(slot.getEndAt());
-        appointment.setStatus(tienePrecio
+        appointment.setStatus(hasPrice
                 ? Appointment.AppointmentStatus.PENDING_PAYMENT
                 : Appointment.AppointmentStatus.RESERVED);
-        appointment.setPriceAmountCents(precio != null ? precio : 0);
+        appointment.setPriceAmountCents(price != null ? price : 0);
         appointment.setCurrency(slot.getTherapist().getPriceCurrency());
         appointment.setNotes(request.getNotes());
         if (request.getSpecialtyName() != null && !request.getSpecialtyName().isBlank()) {
@@ -155,14 +228,13 @@ public class AppointmentService {
         AppointmentDTO.AppointmentResponse response = new AppointmentDTO.AppointmentResponse(savedAppointment);
 
         // Crear preferencia de pago en Mercado Pago usando el token del terapeuta
-        if (tienePrecio) {
+        if (hasPrice) {
             try {
-                String tokenTerapeuta = slot.getTherapist().getMpAccessToken();
-                String paymentUrl = paymentService.crearPreferenciaMP(savedAppointment, tokenTerapeuta);
+                String therapistToken = slot.getTherapist().getMpAccessToken();
+                String paymentUrl = paymentService.createPaymentPreference(savedAppointment, therapistToken);
                 response.setPaymentUrl(paymentUrl);
             } catch (Exception e) {
                 log.error("Error al crear preferencia MP para turno {}: {}", savedAppointment.getId(), e.getMessage());
-                // No bloqueamos la reserva; el usuario puede reintentar el pago
             }
         }
 
@@ -174,7 +246,7 @@ public class AppointmentService {
      * Llamado desde el webhook de Mercado Pago o desde el endpoint de simulación.
      */
     @Transactional
-    public AppointmentDTO.AppointmentResponse confirmarPago(Integer appointmentId) {
+    public AppointmentDTO.AppointmentResponse confirmPayment(Integer appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + appointmentId));
 
@@ -185,12 +257,17 @@ public class AppointmentService {
         appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
 
         // Crear meeting de Zoom
-        String zoomUrl = zoomService.crearMeeting(appointment);
+        String zoomUrl = zoomService.createMeeting(appointment);
         if (zoomUrl != null) {
             appointment.setZoomJoinUrl(zoomUrl);
         }
 
-        return new AppointmentDTO.AppointmentResponse(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // Notificar al terapeuta con los datos del cliente
+        notifyTherapistOfNewAppointment(saved);
+
+        return new AppointmentDTO.AppointmentResponse(saved);
     }
 
     /**
@@ -201,10 +278,10 @@ public class AppointmentService {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + id));
 
-        boolean esElUsuario = appointment.getUser().getId().equals(requestingUserId);
-        boolean esElTerapeuta = appointment.getTherapist().getUser().getId().equals(requestingUserId);
+        boolean isOwner = appointment.getUser().getId().equals(requestingUserId);
+        boolean isTherapist = appointment.getTherapist().getUser().getId().equals(requestingUserId);
 
-        if (!esElUsuario && !esElTerapeuta) {
+        if (!isOwner && !isTherapist) {
             User requesting = userRepository.findById(requestingUserId)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             if (requesting.getRole() != User.Role.ADMIN) {
@@ -219,14 +296,14 @@ public class AppointmentService {
      * Cancela un turno. Solo puede hacerlo el usuario que lo reservó o el terapeuta.
      */
     @Transactional
-    public AppointmentDTO.AppointmentResponse cancelarTurno(Integer appointmentId, Integer userId) {
+    public AppointmentDTO.AppointmentResponse cancelAppointment(Integer appointmentId, Integer userId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + appointmentId));
 
-        boolean esElUsuario = appointment.getUser().getId().equals(userId);
-        boolean esElTerapeuta = appointment.getTherapist().getUser().getId().equals(userId);
+        boolean isOwner = appointment.getUser().getId().equals(userId);
+        boolean isTherapist = appointment.getTherapist().getUser().getId().equals(userId);
 
-        if (!esElUsuario && !esElTerapeuta) {
+        if (!isOwner && !isTherapist) {
             throw new RuntimeException("No tenés permiso para cancelar este turno");
         }
 
@@ -251,12 +328,12 @@ public class AppointmentService {
      * Marca un turno como completado. Solo puede hacerlo el terapeuta del turno.
      */
     @Transactional
-    public AppointmentDTO.AppointmentResponse completarTurno(Integer appointmentId, Integer userId) {
+    public AppointmentDTO.AppointmentResponse completeAppointment(Integer appointmentId, Integer userId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + appointmentId));
 
-        boolean esElTerapeuta = appointment.getTherapist().getUser().getId().equals(userId);
-        if (!esElTerapeuta) {
+        boolean isTherapist = appointment.getTherapist().getUser().getId().equals(userId);
+        if (!isTherapist) {
             throw new RuntimeException("Solo el terapeuta puede marcar el turno como completado");
         }
 
@@ -272,7 +349,7 @@ public class AppointmentService {
      * Historial de turnos de un usuario, separados en próximos y pasados.
      */
     @Transactional(readOnly = true)
-    public AppointmentDTO.AgendaResponse getTurnosPorUsuario(Integer userId, Integer requestingUserId) {
+    public AppointmentDTO.AgendaResponse getAppointmentsByUser(Integer userId, Integer requestingUserId) {
         if (!userId.equals(requestingUserId)) {
             User requesting = userRepository.findById(requestingUserId)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
@@ -280,62 +357,62 @@ public class AppointmentService {
                 throw new RuntimeException("No tenés permiso para ver estos turnos");
             }
         }
-        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
-        List<AppointmentDTO.AppointmentResponse> todos = appointmentRepository
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        List<AppointmentDTO.AppointmentResponse> all = appointmentRepository
                 .findByUserIdOrderByStartAtDesc(userId).stream()
                 .map(AppointmentDTO.AppointmentResponse::new)
                 .collect(Collectors.toList());
 
-        List<AppointmentDTO.AppointmentResponse> proximos = todos.stream()
+        List<AppointmentDTO.AppointmentResponse> upcoming = all.stream()
                 .filter(a -> !a.getStatus().equals("CANCELLED") && !a.getStatus().equals("COMPLETED")
-                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(ahora))
+                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(now))
                 .sorted((a, b) -> a.getStartAt().compareTo(b.getStartAt()))
                 .collect(Collectors.toList());
 
-        List<AppointmentDTO.AppointmentResponse> pasados = todos.stream()
+        List<AppointmentDTO.AppointmentResponse> past = all.stream()
                 .filter(a -> a.getStatus().equals("CANCELLED") || a.getStatus().equals("COMPLETED")
-                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(ahora)))
+                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(now)))
                 .collect(Collectors.toList());
 
-        return new AppointmentDTO.AgendaResponse(proximos, pasados);
+        return new AppointmentDTO.AgendaResponse(upcoming, past);
     }
 
     /**
      * Agenda de un terapeuta separada en próximos y pasados. Solo puede verla el propio terapeuta o un admin.
      */
     @Transactional(readOnly = true)
-    public AppointmentDTO.AgendaResponse getTurnosPorTerapeuta(Integer therapistId, Integer requestingUserId) {
+    public AppointmentDTO.AgendaResponse getAppointmentsByTherapist(Integer therapistId, Integer requestingUserId) {
         therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
 
         User requesting = userRepository.findById(requestingUserId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        boolean esTerapeuta = therapistRepository.findById(therapistId)
+        boolean isTherapist = therapistRepository.findById(therapistId)
                 .map(t -> t.getUser().getId().equals(requestingUserId))
                 .orElse(false);
 
-        if (!esTerapeuta && requesting.getRole() != User.Role.ADMIN) {
+        if (!isTherapist && requesting.getRole() != User.Role.ADMIN) {
             throw new RuntimeException("No tenés permiso para ver la agenda de este terapeuta");
         }
 
-        LocalDateTime ahora = LocalDateTime.now(ZoneOffset.UTC);
-        List<AppointmentDTO.AppointmentResponse> todos = appointmentRepository
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        List<AppointmentDTO.AppointmentResponse> all = appointmentRepository
                 .findByTherapistIdOrderByStartAtAsc(therapistId).stream()
                 .map(AppointmentDTO.AppointmentResponse::new)
                 .collect(Collectors.toList());
 
-        List<AppointmentDTO.AppointmentResponse> proximos = todos.stream()
+        List<AppointmentDTO.AppointmentResponse> upcoming = all.stream()
                 .filter(a -> !a.getStatus().equals("CANCELLED") && !a.getStatus().equals("COMPLETED")
-                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(ahora))
+                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(now))
                 .collect(Collectors.toList());
 
-        List<AppointmentDTO.AppointmentResponse> pasados = todos.stream()
+        List<AppointmentDTO.AppointmentResponse> past = all.stream()
                 .filter(a -> a.getStatus().equals("CANCELLED") || a.getStatus().equals("COMPLETED")
-                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(ahora)))
+                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(now)))
                 .sorted((a, b) -> b.getStartAt().compareTo(a.getStartAt()))
                 .collect(Collectors.toList());
 
-        return new AppointmentDTO.AgendaResponse(proximos, pasados);
+        return new AppointmentDTO.AgendaResponse(upcoming, past);
     }
 }

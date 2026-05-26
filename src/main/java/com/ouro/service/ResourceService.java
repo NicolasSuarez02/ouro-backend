@@ -33,7 +33,7 @@ public class ResourceService {
      * Un terapeuta sube un archivo. Queda en PENDING hasta que un admin lo apruebe.
      */
     @Transactional
-    public ResourceDTO.ResourceResponse subirArchivo(MultipartFile archivo, ResourceDTO.UploadResourceRequest request) {
+    public ResourceDTO.ResourceResponse uploadFile(MultipartFile file, ResourceDTO.UploadResourceRequest request) {
         User uploader = userRepository.findById(request.getUploadedByUserId())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + request.getUploadedByUserId()));
 
@@ -45,21 +45,21 @@ public class ResourceService {
             throw new RuntimeException("Solo los terapeutas pueden subir archivos");
         }
 
-        if (archivo.isEmpty()) {
+        if (file.isEmpty()) {
             throw new RuntimeException("El archivo está vacío");
         }
 
-        String nombreAlmacenado = storageService.guardar(archivo, request.getCategory());
+        String storedName = storageService.save(file, request.getCategory());
 
         Resource resource = new Resource();
         resource.setTitle(request.getTitle());
         resource.setDescription(request.getDescription());
         resource.setCategory(request.getCategory());
-        resource.setOriginalFileName(archivo.getOriginalFilename());
-        resource.setStoredFileName(nombreAlmacenado);
-        resource.setFilePath(storageService.getRutaRelativa(request.getCategory(), nombreAlmacenado));
-        resource.setFileSize(archivo.getSize());
-        resource.setMimeType(archivo.getContentType());
+        resource.setOriginalFileName(file.getOriginalFilename());
+        resource.setStoredFileName(storedName);
+        resource.setFilePath(storageService.getRelativePath(request.getCategory(), storedName));
+        resource.setFileSize(file.getSize());
+        resource.setMimeType(file.getContentType());
         resource.setUploadedBy(uploader);
         resource.setApprovalStatus(Resource.ApprovalStatus.PENDING);
 
@@ -71,10 +71,10 @@ public class ResourceService {
      * Requiere usuario logueado.
      */
     @Transactional(readOnly = true)
-    public List<ResourceDTO.ResourceResponse> listarAprobados(Resource.ResourceCategory categoria, Integer requestingUserId) {
-        verificarUsuarioLogueado(requestingUserId);
+    public List<ResourceDTO.ResourceResponse> listApproved(Resource.ResourceCategory category, Integer requestingUserId) {
+        verifyLoggedIn(requestingUserId);
         return resourceRepository
-                .findByCategoryAndApprovalStatus(categoria, Resource.ApprovalStatus.APPROVED)
+                .findByCategoryAndApprovalStatus(category, Resource.ApprovalStatus.APPROVED)
                 .stream()
                 .map(ResourceDTO.ResourceResponse::new)
                 .collect(Collectors.toList());
@@ -84,8 +84,8 @@ public class ResourceService {
      * Recursos pendientes de aprobación. Solo admins.
      */
     @Transactional(readOnly = true)
-    public List<ResourceDTO.ResourceResponse> listarPendientes(Integer adminUserId) {
-        verificarAdmin(adminUserId);
+    public List<ResourceDTO.ResourceResponse> listPending(Integer adminUserId) {
+        verifyAdmin(adminUserId);
         return resourceRepository
                 .findByApprovalStatus(Resource.ApprovalStatus.PENDING)
                 .stream()
@@ -97,8 +97,8 @@ public class ResourceService {
      * Admin aprueba un recurso.
      */
     @Transactional
-    public ResourceDTO.ResourceResponse aprobar(Integer resourceId, Integer adminUserId) {
-        User admin = verificarAdmin(adminUserId);
+    public ResourceDTO.ResourceResponse approve(Integer resourceId, Integer adminUserId) {
+        User admin = verifyAdmin(adminUserId);
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new RuntimeException("Recurso no encontrado con id: " + resourceId));
 
@@ -111,8 +111,8 @@ public class ResourceService {
      * Admin rechaza un recurso.
      */
     @Transactional
-    public ResourceDTO.ResourceResponse rechazar(Integer resourceId, Integer adminUserId) {
-        User admin = verificarAdmin(adminUserId);
+    public ResourceDTO.ResourceResponse reject(Integer resourceId, Integer adminUserId) {
+        User admin = verifyAdmin(adminUserId);
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new RuntimeException("Recurso no encontrado con id: " + resourceId));
 
@@ -125,8 +125,8 @@ public class ResourceService {
      * Retorna el archivo para descarga. Requiere usuario logueado.
      */
     @Transactional(readOnly = true)
-    public Resource obtenerParaDescarga(Integer resourceId, Integer requestingUserId) {
-        verificarUsuarioLogueado(requestingUserId);
+    public Resource getForDownload(Integer resourceId, Integer requestingUserId) {
+        verifyLoggedIn(requestingUserId);
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new RuntimeException("Recurso no encontrado con id: " + resourceId));
 
@@ -141,27 +141,27 @@ public class ResourceService {
      * Elimina un recurso. Solo el dueño o un admin.
      */
     @Transactional
-    public void eliminar(Integer resourceId, Integer requestingUserId) {
-        User requesting = verificarUsuarioLogueado(requestingUserId);
+    public void delete(Integer resourceId, Integer requestingUserId) {
+        User requesting = verifyLoggedIn(requestingUserId);
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new RuntimeException("Recurso no encontrado con id: " + resourceId));
 
-        boolean esDueno = resource.getUploadedBy().getId().equals(requestingUserId);
-        boolean esAdmin = requesting.getRole() == User.Role.ADMIN;
+        boolean isOwner = resource.getUploadedBy().getId().equals(requestingUserId);
+        boolean isAdmin = requesting.getRole() == User.Role.ADMIN;
 
-        if (!esDueno && !esAdmin) {
+        if (!isOwner && !isAdmin) {
             throw new RuntimeException("No tenés permiso para eliminar este recurso");
         }
 
-        storageService.eliminar(resource.getStoredFileName(), resource.getMimeType());
+        storageService.delete(resource.getStoredFileName(), resource.getMimeType());
         resourceRepository.deleteById(resourceId);
     }
 
-    public String obtenerUrlDescarga(Resource resource) {
+    public String getDownloadUrl(Resource resource) {
         return resource.getFilePath();
     }
 
-    private User verificarAdmin(Integer adminUserId) {
+    private User verifyAdmin(Integer adminUserId) {
         User admin = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + adminUserId));
         if (admin.getRole() != User.Role.ADMIN) {
@@ -170,7 +170,7 @@ public class ResourceService {
         return admin;
     }
 
-    private User verificarUsuarioLogueado(Integer userId) {
+    private User verifyLoggedIn(Integer userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
     }

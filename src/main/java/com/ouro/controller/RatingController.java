@@ -29,11 +29,11 @@ public class RatingController {
      * POST /api/ratings — requiere auth. El userId viene del JWT.
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> crearCalificacion(
+    public ResponseEntity<Map<String, Object>> createRating(
             @Valid @RequestBody RatingDTO.CreateRatingRequest request) {
         try {
             Integer userId = currentUserId();
-            RatingDTO.RatingResponse response = ratingService.crearCalificacion(request, userId);
+            RatingDTO.RatingResponse response = ratingService.createRating(request, userId);
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("rating", response);
@@ -50,20 +50,20 @@ public class RatingController {
      * GET /api/ratings/therapist/{therapistId}/estado — requiere auth. El userId viene del JWT.
      */
     @GetMapping("/therapist/{therapistId}/estado")
-    public ResponseEntity<RatingDTO.RatingEstado> obtenerEstado(
+    public ResponseEntity<RatingDTO.RatingEstado> getStatus(
             @PathVariable Integer therapistId) {
         Integer userId = currentUserId();
-        RatingDTO.RatingEstado estado = ratingService.obtenerEstado(therapistId, userId);
-        return ResponseEntity.ok(estado);
+        RatingDTO.RatingEstado status = ratingService.getStatus(therapistId, userId);
+        return ResponseEntity.ok(status);
     }
 
     /**
      * GET /api/ratings/therapist/{therapistId} — público.
      */
     @GetMapping("/therapist/{therapistId}")
-    public ResponseEntity<List<RatingDTO.RatingResponse>> getCalificaciones(
+    public ResponseEntity<List<RatingDTO.RatingResponse>> getRatings(
             @PathVariable Integer therapistId) {
-        return ResponseEntity.ok(ratingService.getCalificacionesPorTerapeuta(therapistId));
+        return ResponseEntity.ok(ratingService.getRatingsByTherapist(therapistId));
     }
 
     private Integer currentUserId() {

@@ -227,7 +227,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> getAllUsersPaginados(Integer adminUserId, String search, String role, int page, int size) {
+    public Map<String, Object> getAllUsersPaginated(Integer adminUserId, String search, String role, int page, int size) {
         User admin = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         if (admin.getRole() != User.Role.ADMIN) {
@@ -321,7 +321,7 @@ public class UserService {
         }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
-        eliminarUsuarioEnCascada(user);
+        deleteUserCascade(user);
     }
 
     @Transactional
@@ -336,10 +336,10 @@ public class UserService {
         }
         User target = userRepository.findById(targetId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + targetId));
-        eliminarUsuarioEnCascada(target);
+        deleteUserCascade(target);
     }
 
-    private void eliminarUsuarioEnCascada(User user) {
+    private void deleteUserCascade(User user) {
         // Si es terapeuta: borrar timeslots, turnos (como terapeuta), disponibilidad y ratings recibidos
         if (user.getTherapist() != null) {
             Integer therapistId = user.getTherapist().getId();
@@ -350,8 +350,8 @@ public class UserService {
         }
 
         // Liberar timeslots asociados a los turnos donde el usuario es cliente
-        List<Appointment> turnosComoCliente = appointmentRepository.findByUserId(user.getId());
-        for (Appointment appt : turnosComoCliente) {
+        List<Appointment> appointmentsAsClient = appointmentRepository.findByUserId(user.getId());
+        for (Appointment appt : appointmentsAsClient) {
             timeSlotRepository.findByAppointmentId(appt.getId()).ifPresent(slot -> {
                 slot.setStatus(TimeSlot.SlotStatus.FREE);
                 slot.setAppointment(null);

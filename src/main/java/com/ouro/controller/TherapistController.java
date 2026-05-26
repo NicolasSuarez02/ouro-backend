@@ -196,7 +196,7 @@ public class TherapistController {
     public ResponseEntity<Object> getMpConnectUrl() {
         try {
             Integer userId = currentUserId();
-            String authUrl = mpOAuthService.generarUrlAutorizacion(userId);
+            String authUrl = mpOAuthService.generateAuthorizationUrl(userId);
             Map<String, String> result = new HashMap<>();
             result.put("authUrl", authUrl);
             return ResponseEntity.ok(result);
@@ -219,8 +219,8 @@ public class TherapistController {
         String baseUrl = frontendUrl.trim();
         if (!baseUrl.startsWith("http")) baseUrl = "https://" + baseUrl;
         try {
-            Integer userId = mpOAuthService.extraerUserIdDeState(state);
-            mpOAuthService.procesarCallback(code, userId);
+            Integer userId = mpOAuthService.extractUserIdFromState(state);
+            mpOAuthService.processCallback(code, userId);
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header("Location", baseUrl + "/dashboard?mp=success")
                     .build();

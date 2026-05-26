@@ -32,8 +32,8 @@ public class ResourceController {
      * Terapeuta sube un archivo — requiere auth. El userId viene del JWT.
      */
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Object> subirArchivo(
-            @RequestPart("archivo") MultipartFile archivo,
+    public ResponseEntity<Object> uploadFile(
+            @RequestPart("archivo") MultipartFile file,
             @RequestPart("title") String title,
             @RequestPart("category") String category,
             @RequestPart(value = "description", required = false) String description) {
@@ -45,7 +45,7 @@ public class ResourceController {
             request.setCategory(Resource.ResourceCategory.valueOf(category));
             request.setUploadedByUserId(userId);
 
-            ResourceDTO.ResourceResponse response = resourceService.subirArchivo(archivo, request);
+            ResourceDTO.ResourceResponse response = resourceService.uploadFile(file, request);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             Map<String, Object> error = new HashMap<>();
@@ -64,11 +64,11 @@ public class ResourceController {
      * Listado de recursos aprobados por categoría — requiere auth. El userId viene del JWT.
      */
     @GetMapping
-    public ResponseEntity<Object> listarAprobados(
+    public ResponseEntity<Object> listApproved(
             @RequestParam Resource.ResourceCategory category) {
         try {
             Integer userId = currentUserId();
-            List<ResourceDTO.ResourceResponse> resources = resourceService.listarAprobados(category, userId);
+            List<ResourceDTO.ResourceResponse> resources = resourceService.listApproved(category, userId);
             return new ResponseEntity<>(resources, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -82,10 +82,10 @@ public class ResourceController {
      * Recursos pendientes de aprobación — solo admins.
      */
     @GetMapping("/pending")
-    public ResponseEntity<Object> listarPendientes() {
+    public ResponseEntity<Object> listPending() {
         try {
             Integer adminUserId = currentUserId();
-            List<ResourceDTO.ResourceResponse> resources = resourceService.listarPendientes(adminUserId);
+            List<ResourceDTO.ResourceResponse> resources = resourceService.listPending(adminUserId);
             return new ResponseEntity<>(resources, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -99,10 +99,10 @@ public class ResourceController {
      * Admin aprueba un recurso.
      */
     @PutMapping("/{id}/approve")
-    public ResponseEntity<Object> aprobar(@PathVariable Integer id) {
+    public ResponseEntity<Object> approve(@PathVariable Integer id) {
         try {
             Integer adminUserId = currentUserId();
-            ResourceDTO.ResourceResponse response = resourceService.aprobar(id, adminUserId);
+            ResourceDTO.ResourceResponse response = resourceService.approve(id, adminUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -116,10 +116,10 @@ public class ResourceController {
      * Admin rechaza un recurso.
      */
     @PutMapping("/{id}/reject")
-    public ResponseEntity<Object> rechazar(@PathVariable Integer id) {
+    public ResponseEntity<Object> reject(@PathVariable Integer id) {
         try {
             Integer adminUserId = currentUserId();
-            ResourceDTO.ResourceResponse response = resourceService.rechazar(id, adminUserId);
+            ResourceDTO.ResourceResponse response = resourceService.reject(id, adminUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -133,11 +133,11 @@ public class ResourceController {
      * Descarga un archivo — requiere auth.
      */
     @GetMapping("/{id}/download")
-    public ResponseEntity<Object> descargar(@PathVariable Integer id) {
+    public ResponseEntity<Object> download(@PathVariable Integer id) {
         try {
             Integer userId = currentUserId();
-            Resource resource = resourceService.obtenerParaDescarga(id, userId);
-            String url = resourceService.obtenerUrlDescarga(resource);
+            Resource resource = resourceService.getForDownload(id, userId);
+            String url = resourceService.getDownloadUrl(resource);
             return ResponseEntity.status(HttpStatus.FOUND)
                     .header(HttpHeaders.LOCATION, url)
                     .build();
@@ -153,10 +153,10 @@ public class ResourceController {
      * Elimina un recurso — solo el dueño o un admin.
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Object> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Object> delete(@PathVariable Integer id) {
         try {
             Integer userId = currentUserId();
-            resourceService.eliminar(id, userId);
+            resourceService.delete(id, userId);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();

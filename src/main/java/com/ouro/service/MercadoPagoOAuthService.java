@@ -48,7 +48,7 @@ public class MercadoPagoOAuthService {
         this.therapistRepository = therapistRepository;
     }
 
-    public String generarUrlAutorizacion(Integer userId) {
+    public String generateAuthorizationUrl(Integer userId) {
         long ts = Instant.now().getEpochSecond();
         String payload = userId + "." + ts;
         String signature = hmacSha256(jwtSecret, payload);
@@ -66,7 +66,7 @@ public class MercadoPagoOAuthService {
                 + "&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
     }
 
-    public Integer extraerUserIdDeState(String state) {
+    public Integer extractUserIdFromState(String state) {
         String[] parts = state.split("\\.", 3);
         if (parts.length != 3) {
             throw new RuntimeException("State OAuth inválido");
@@ -100,7 +100,7 @@ public class MercadoPagoOAuthService {
     }
 
     @Transactional
-    public void procesarCallback(String code, Integer userId) {
+    public void processCallback(String code, Integer userId) {
         String redirectUri = backendUrl + "/api/therapists/mp-callback";
 
         HttpHeaders headers = new HttpHeaders();

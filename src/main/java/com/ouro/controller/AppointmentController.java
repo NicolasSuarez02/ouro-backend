@@ -33,8 +33,8 @@ public class AppointmentController {
             @RequestParam int year,
             @RequestParam int month,
             @RequestParam(required = false) String specialty) {
-        List<String> dias = appointmentService.getDiasDisponiblesEnMes(therapistId, year, month, specialty);
-        return new ResponseEntity<>(dias, HttpStatus.OK);
+        List<String> days = appointmentService.getAvailableDaysInMonth(therapistId, year, month, specialty);
+        return new ResponseEntity<>(days, HttpStatus.OK);
     }
 
     /** Slots libres de un terapeuta para un día específico (público). */
@@ -43,19 +43,19 @@ public class AppointmentController {
             @RequestParam Integer therapistId,
             @RequestParam String date,
             @RequestParam(required = false) String specialty) {
-        LocalDate fecha = LocalDate.parse(date);
+        LocalDate parsedDate = LocalDate.parse(date);
         List<AppointmentDTO.SlotResponse> slots =
-                appointmentService.getSlotsDisponiblesPorDia(therapistId, fecha, specialty);
+                appointmentService.getAvailableSlotsForDay(therapistId, parsedDate, specialty);
         return new ResponseEntity<>(slots, HttpStatus.OK);
     }
 
     /** Reserva un turno — requiere auth. El userId viene del JWT. */
     @PostMapping
-    public ResponseEntity<Object> reservarTurno(
+    public ResponseEntity<Object> bookAppointment(
             @Valid @RequestBody AppointmentDTO.BookAppointmentRequest request) {
         try {
             Integer userId = currentUserId();
-            AppointmentDTO.AppointmentResponse response = appointmentService.reservarTurno(request, userId);
+            AppointmentDTO.AppointmentResponse response = appointmentService.bookAppointment(request, userId);
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -67,7 +67,7 @@ public class AppointmentController {
 
     /** Obtiene un turno por ID — solo el dueño, el terapeuta o un admin. */
     @GetMapping("/{id}")
-    public ResponseEntity<Object> getTurnoPorId(@PathVariable Integer id) {
+    public ResponseEntity<Object> getAppointmentById(@PathVariable Integer id) {
         try {
             Integer requestingUserId = currentUserId();
             AppointmentDTO.AppointmentResponse response =
@@ -81,12 +81,29 @@ public class AppointmentController {
         }
     }
 
-    /** Cancela un turno — solo el usuario o el terapeuta del turno. */
-    @PutMapping("/{id}/cancel")
-    public ResponseEntity<Object> cancelarTurno(@PathVariable Integer id) {
+    /** Regenera el link de pago para un turno PENDING_PAYMENT — solo el dueño del turno. */
+    @GetMapping("/{id}/payment-link")
+    public ResponseEntity<Object> getPaymentLink(@PathVariable Integer id) {
         try {
             Integer userId = currentUserId();
-            AppointmentDTO.AppointmentResponse response = appointmentService.cancelarTurno(id, userId);
+            String url = appointmentService.getPaymentLink(id, userId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("paymentUrl", url);
+            return new ResponseEntity<>(result, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /** Cancela un turno — solo el usuario o el terapeuta del turno. */
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<Object> cancelAppointment(@PathVariable Integer id) {
+        try {
+            Integer userId = currentUserId();
+            AppointmentDTO.AppointmentResponse response = appointmentService.cancelAppointment(id, userId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -98,10 +115,10 @@ public class AppointmentController {
 
     /** Marca un turno como completado — solo el terapeuta del turno. */
     @PutMapping("/{id}/complete")
-    public ResponseEntity<Object> completarTurno(@PathVariable Integer id) {
+    public ResponseEntity<Object> completeAppointment(@PathVariable Integer id) {
         try {
             Integer userId = currentUserId();
-            AppointmentDTO.AppointmentResponse response = appointmentService.completarTurno(id, userId);
+            AppointmentDTO.AppointmentResponse response = appointmentService.completeAppointment(id, userId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -113,11 +130,11 @@ public class AppointmentController {
 
     /** Agenda de un usuario — solo él mismo o un admin. */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<Object> getTurnosPorUsuario(@PathVariable Integer userId) {
+    public ResponseEntity<Object> getAppointmentsByUser(@PathVariable Integer userId) {
         try {
             Integer requestingUserId = currentUserId();
             AppointmentDTO.AgendaResponse response =
-                    appointmentService.getTurnosPorUsuario(userId, requestingUserId);
+                    appointmentService.getAppointmentsByUser(userId, requestingUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
@@ -129,11 +146,11 @@ public class AppointmentController {
 
     /** Agenda de un terapeuta — solo el propio terapeuta o un admin. */
     @GetMapping("/therapist/{therapistId}")
-    public ResponseEntity<Object> getTurnosPorTerapeuta(@PathVariable Integer therapistId) {
+    public ResponseEntity<Object> getAppointmentsByTherapist(@PathVariable Integer therapistId) {
         try {
             Integer requestingUserId = currentUserId();
             AppointmentDTO.AgendaResponse response =
-                    appointmentService.getTurnosPorTerapeuta(therapistId, requestingUserId);
+                    appointmentService.getAppointmentsByTherapist(therapistId, requestingUserId);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();

@@ -79,7 +79,7 @@ public class AvailabilityService {
         }
 
         // Generar time slots para los próximos 60 días
-        generarTimeSlots(therapist, saved);
+        generateTimeSlots(therapist, saved);
 
         return saved.stream()
                 .map(AvailabilityDTO.AvailabilityResponse::new)
@@ -96,30 +96,30 @@ public class AvailabilityService {
     /**
      * Genera time slots para los próximos 60 días en base a la disponibilidad configurada.
      */
-    private void generarTimeSlots(Therapist therapist, List<Availability> availabilities) {
-        LocalDate hoy = LocalDate.now();
-        LocalDate fin = hoy.plusDays(60);
+    private void generateTimeSlots(Therapist therapist, List<Availability> availabilities) {
+        LocalDate today = LocalDate.now();
+        LocalDate end = today.plusDays(60);
         List<TimeSlot> slots = new ArrayList<>();
 
-        for (LocalDate fecha = hoy; !fecha.isAfter(fin); fecha = fecha.plusDays(1)) {
-            int dbDayOfWeek = convertirDiaADb(fecha.getDayOfWeek());
+        for (LocalDate date = today; !date.isAfter(end); date = date.plusDays(1)) {
+            int dbDayOfWeek = convertDayOfWeekToDb(date.getDayOfWeek());
 
             for (Availability avail : availabilities) {
                 if (!avail.getDayOfWeek().equals(dbDayOfWeek)) continue;
-                if (avail.getDateFrom() != null && fecha.isBefore(avail.getDateFrom())) continue;
-                if (avail.getDateTo() != null && fecha.isAfter(avail.getDateTo())) continue;
+                if (avail.getDateFrom() != null && date.isBefore(avail.getDateFrom())) continue;
+                if (avail.getDateTo() != null && date.isAfter(avail.getDateTo())) continue;
 
                 LocalTime cursor = avail.getStartTime();
-                int duracion = avail.getSlotDurationMinutes();
+                int duration = avail.getSlotDurationMinutes();
 
-                while (!cursor.plusMinutes(duracion).isAfter(avail.getEndTime())) {
+                while (!cursor.plusMinutes(duration).isAfter(avail.getEndTime())) {
                     TimeSlot slot = new TimeSlot();
                     slot.setTherapist(therapist);
-                    slot.setStartAt(LocalDateTime.of(fecha, cursor));
-                    slot.setEndAt(LocalDateTime.of(fecha, cursor.plusMinutes(duracion)));
+                    slot.setStartAt(LocalDateTime.of(date, cursor));
+                    slot.setEndAt(LocalDateTime.of(date, cursor.plusMinutes(duration)));
                     slot.setStatus(TimeSlot.SlotStatus.FREE);
                     slots.add(slot);
-                    cursor = cursor.plusMinutes(duracion);
+                    cursor = cursor.plusMinutes(duration);
                 }
             }
         }
@@ -130,7 +130,7 @@ public class AvailabilityService {
     /**
      * Convierte DayOfWeek de Java a la convención DB (0=Domingo, 1=Lunes, ..., 6=Sábado).
      */
-    private int convertirDiaADb(DayOfWeek dayOfWeek) {
+    private int convertDayOfWeekToDb(DayOfWeek dayOfWeek) {
         if (dayOfWeek == DayOfWeek.SUNDAY) return 0;
         return dayOfWeek.getValue(); // MONDAY=1 ... SATURDAY=6
     }

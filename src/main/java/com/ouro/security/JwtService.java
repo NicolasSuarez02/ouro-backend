@@ -20,7 +20,7 @@ public class JwtService {
     @Value("${app.jwt.expiration:86400000}")
     private long jwtExpiration;
 
-    public String generarToken(User user) {
+    public String generateToken(User user) {
         return Jwts.builder()
                 .subject(user.getId().toString())
                 .claim("role", user.getRole().name())
@@ -30,7 +30,7 @@ public class JwtService {
                 .compact();
     }
 
-    public Claims validarToken(String token) {
+    public Claims validateToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
                 .build()
@@ -39,7 +39,7 @@ public class JwtService {
     }
 
     public Integer getUserIdFromToken(String token) {
-        return Integer.parseInt(validarToken(token).getSubject());
+        return Integer.parseInt(validateToken(token).getSubject());
     }
 
     private SecretKey getSigningKey() {

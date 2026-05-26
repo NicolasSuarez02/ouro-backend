@@ -73,6 +73,18 @@ public class ClientController {
         }
     }
     
+    @PutMapping("/me")
+    public ResponseEntity<ClientDTO.ClientResponse> updateMyClient(
+            @Valid @RequestBody ClientDTO.UpdateClientRequest request) {
+        try {
+            Integer userId = currentUserId();
+            ClientDTO.ClientResponse response = clientService.updateClientByUserId(userId, request);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<ClientDTO.ClientResponse> updateClient(
             @PathVariable Integer id,
