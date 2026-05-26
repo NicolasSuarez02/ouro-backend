@@ -216,15 +216,17 @@ public class TherapistController {
     public ResponseEntity<Void> mpCallback(
             @RequestParam String code,
             @RequestParam String state) {
+        String baseUrl = frontendUrl.trim();
+        if (!baseUrl.startsWith("http")) baseUrl = "https://" + baseUrl;
         try {
             Integer userId = mpOAuthService.extraerUserIdDeState(state);
             mpOAuthService.procesarCallback(code, userId);
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .header("Location", frontendUrl + "/dashboard?mp=success")
+                    .header("Location", baseUrl + "/dashboard?mp=success")
                     .build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .header("Location", frontendUrl + "/dashboard?mp=error")
+                    .header("Location", baseUrl + "/dashboard?mp=error")
                     .build();
         }
     }
