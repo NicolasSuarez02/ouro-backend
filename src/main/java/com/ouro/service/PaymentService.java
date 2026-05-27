@@ -146,7 +146,6 @@ public class PaymentService {
             Map<String, Object> filters = new HashMap<>();
             filters.put("external_reference", appointmentId.toString());
             MPSearchRequest searchRequest = MPSearchRequest.builder()
-                    .limit(5)
                     .filters(filters)
                     .build();
             var results = new PaymentClient().search(searchRequest, requestOptions);
