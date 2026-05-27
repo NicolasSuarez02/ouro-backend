@@ -10,8 +10,9 @@ import com.mercadopago.client.preference.PreferenceRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
 import com.mercadopago.net.MPResponse;
-import com.mercadopago.net.MPSearchRequest;
 import com.mercadopago.resources.payment.Payment;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mercadopago.resources.preference.Preference;
 import com.ouro.entity.Appointment;
 import org.slf4j.Logger;
@@ -20,7 +21,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 
@@ -137,27 +141,33 @@ public class PaymentService {
 
     /**
      * Busca en MP si existe un pago aprobado con external_reference = appointmentId.
-     * Usado por el scheduler de reconciliación para confirmar turnos cuyo webhook no llegó.
+     * Llama directamente a la REST API de MP (bypasea el SDK para evitar bugs del builder).
      */
     public boolean hasApprovedPaymentForAppointment(Integer appointmentId, String therapistToken) {
         try {
             String token = resolveToken(therapistToken);
-            MPRequestOptions requestOptions = MPRequestOptions.builder().accessToken(token).build();
-            Map<String, Object> filters = new HashMap<>();
-            filters.put("external_reference", appointmentId.toString());
-            MPSearchRequest searchRequest = MPSearchRequest.builder()
-                    .filters(filters)
+            String url = "https://api.mercadopago.com/v1/payments/search?external_reference=" + appointmentId;
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token)
+                    .GET()
                     .build();
-            var results = new PaymentClient().search(searchRequest, requestOptions);
-            if (results != null && results.getResults() != null) {
-                return results.getResults().stream()
-                        .anyMatch(p -> "approved".equals(p.getStatus()));
+            HttpResponse<String> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = new ObjectMapper().readTree(response.body());
+                JsonNode results = root.path("results");
+                if (results.isArray()) {
+                    for (JsonNode payment : results) {
+                        if ("approved".equals(payment.path("status").asText())) {
+                            return true;
+                        }
+                    }
+                }
+            } else {
+                log.error("MP search para turno {} retornó HTTP {}: {}", appointmentId,
+                        response.statusCode(), response.body());
             }
-        } catch (MPApiException e) {
-            MPResponse resp = e.getApiResponse();
-            log.error("Error MP buscando pago para turno {}. HTTP {}: {}", appointmentId,
-                    resp != null ? resp.getStatusCode() : "?",
-                    resp != null ? resp.getContent() : e.getMessage());
         } catch (Exception e) {
             log.error("Error buscando pago para turno {} en MP: {}", appointmentId, e.getMessage());
         }
