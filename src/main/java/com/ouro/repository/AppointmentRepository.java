@@ -26,4 +26,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Intege
 
     @Query("SELECT a FROM Appointment a WHERE a.status = 'PENDING_PAYMENT' AND a.startAt < :cutoff")
     List<Appointment> findPendingPaymentBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("SELECT a FROM Appointment a WHERE a.status = 'PENDING_PAYMENT' AND a.priceAmountCents > 0 AND a.createdAt < :cutoff")
+    List<Appointment> findPaidPendingPaymentsOlderThan(@Param("cutoff") LocalDateTime cutoff);
 }

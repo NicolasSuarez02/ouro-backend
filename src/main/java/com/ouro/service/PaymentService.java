@@ -10,6 +10,7 @@ import com.mercadopago.client.preference.PreferenceRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
 import com.mercadopago.net.MPResponse;
+import com.mercadopago.net.MPSearchRequest;
 import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.preference.Preference;
 import com.ouro.entity.Appointment;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -131,5 +133,35 @@ public class PaymentService {
             log.error("Error al consultar pago {} en MP: {}", paymentId, e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Busca en MP si existe un pago aprobado con external_reference = appointmentId.
+     * Usado por el scheduler de reconciliación para confirmar turnos cuyo webhook no llegó.
+     */
+    public boolean hasApprovedPaymentForAppointment(Integer appointmentId, String therapistToken) {
+        try {
+            String token = resolveToken(therapistToken);
+            MPRequestOptions requestOptions = MPRequestOptions.builder().accessToken(token).build();
+            Map<String, Object> filters = new HashMap<>();
+            filters.put("external_reference", appointmentId.toString());
+            MPSearchRequest searchRequest = MPSearchRequest.builder()
+                    .limit(5)
+                    .filters(filters)
+                    .build();
+            var results = new PaymentClient().search(searchRequest, requestOptions);
+            if (results != null && results.getResults() != null) {
+                return results.getResults().stream()
+                        .anyMatch(p -> "approved".equals(p.getStatus()));
+            }
+        } catch (MPApiException e) {
+            MPResponse resp = e.getApiResponse();
+            log.error("Error MP buscando pago para turno {}. HTTP {}: {}", appointmentId,
+                    resp != null ? resp.getStatusCode() : "?",
+                    resp != null ? resp.getContent() : e.getMessage());
+        } catch (Exception e) {
+            log.error("Error buscando pago para turno {} en MP: {}", appointmentId, e.getMessage());
+        }
+        return false;
     }
 }

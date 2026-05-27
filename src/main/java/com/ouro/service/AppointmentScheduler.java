@@ -22,12 +22,18 @@ public class AppointmentScheduler {
 
     private final AppointmentRepository appointmentRepository;
     private final TimeSlotRepository timeSlotRepository;
+    private final PaymentService paymentService;
+    private final AppointmentService appointmentService;
 
     @Autowired
     public AppointmentScheduler(AppointmentRepository appointmentRepository,
-                                TimeSlotRepository timeSlotRepository) {
+                                TimeSlotRepository timeSlotRepository,
+                                PaymentService paymentService,
+                                AppointmentService appointmentService) {
         this.appointmentRepository = appointmentRepository;
         this.timeSlotRepository = timeSlotRepository;
+        this.paymentService = paymentService;
+        this.appointmentService = appointmentService;
     }
 
     /**
@@ -55,6 +61,32 @@ public class AppointmentScheduler {
             });
 
             log.info("Turno {} cancelado (pago no recibido antes de {})", appt.getId(), appt.getStartAt());
+        }
+    }
+
+    /**
+     * Busca turnos PENDING_PAYMENT con más de 5 minutos de antigüedad y consulta MP
+     * para ver si el pago fue aprobado pero el webhook no llegó. Corre cada 5 minutos.
+     */
+    @Scheduled(fixedDelay = 300_000)
+    public void reconcilePendingPayments() {
+        LocalDateTime cutoff = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5);
+        List<Appointment> pending = appointmentRepository.findPaidPendingPaymentsOlderThan(cutoff);
+        if (pending.isEmpty()) return;
+
+        log.info("Reconciliación: {} turno(s) en PENDING_PAYMENT para verificar", pending.size());
+
+        for (Appointment apt : pending) {
+            try {
+                String token = apt.getTherapist().getMpAccessToken();
+                if (token == null || token.isBlank()) continue;
+                if (paymentService.hasApprovedPaymentForAppointment(apt.getId(), token)) {
+                    appointmentService.confirmPayment(apt.getId());
+                    log.info("Turno {} confirmado vía reconciliación (webhook perdido)", apt.getId());
+                }
+            } catch (Exception e) {
+                log.error("Error reconciliando turno {}: {}", apt.getId(), e.getMessage());
+            }
         }
     }
 }

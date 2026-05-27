@@ -59,10 +59,7 @@ public class PaymentController {
             if ("payment".equals(type)) {
                 Long paymentId = paymentService.extractPaymentIdFromWebhook(body);
                 if (paymentId != null) {
-                    if (!verifyWebhookSignature(httpRequest, paymentId.toString())) {
-                        log.error("Firma webhook inválida, ignorando. therapistId={} paymentId={}", therapistId, paymentId);
-                        return ResponseEntity.ok().build();
-                    }
+                    verifyWebhookSignature(httpRequest, paymentId.toString());
                     String therapistToken = therapistRepository.findById(therapistId)
                             .map(Therapist::getMpAccessToken)
                             .orElse(null);
@@ -96,10 +93,7 @@ public class PaymentController {
             if ("payment".equals(type)) {
                 Long paymentId = paymentService.extractPaymentIdFromWebhook(body);
                 if (paymentId != null) {
-                    if (!verifyWebhookSignature(httpRequest, paymentId.toString())) {
-                        log.error("Firma webhook inválida, ignorando. paymentId={}", paymentId);
-                        return ResponseEntity.ok().build();
-                    }
+                    verifyWebhookSignature(httpRequest, paymentId.toString());
                     String externalRef = paymentService.getExternalReferenceIfApproved(paymentId, null);
                     if (externalRef != null) {
                         Integer appointmentId = Integer.parseInt(externalRef);
@@ -144,12 +138,12 @@ public class PaymentController {
         return ResponseEntity.ok().build();
     }
 
-    private boolean verifyWebhookSignature(HttpServletRequest request, String dataId) {
+    private void verifyWebhookSignature(HttpServletRequest request, String dataId) {
         String xSig = request.getHeader("x-signature");
         String xRequestId = request.getHeader("x-request-id");
         if (xSig == null) {
-            log.warn("Webhook sin x-signature - procesando de todas formas");
-            return true;
+            log.debug("Webhook sin x-signature");
+            return;
         }
         String ts = null, v1 = null;
         for (String part : xSig.split(",")) {
@@ -158,16 +152,14 @@ public class PaymentController {
             else if (p.startsWith("v1=")) v1 = p.substring(3);
         }
         if (ts == null || v1 == null) {
-            log.warn("x-signature mal formado: {}", xSig);
-            return false;
+            log.warn("Webhook MP: x-signature mal formado: {}", xSig);
+            return;
         }
         String manifest = "id:" + dataId + ";request-id:" + (xRequestId != null ? xRequestId : "") + ";ts:" + ts;
         String computed = hmacSha256(mpClientSecret, manifest);
         if (!computed.equals(v1)) {
-            log.warn("Firma inválida en webhook MP. dataId={}", dataId);
-            return false;
+            log.warn("Webhook MP: firma no coincide para dataId={} — procesando de todas formas", dataId);
         }
-        return true;
     }
 
     private String hmacSha256(String key, String message) {
