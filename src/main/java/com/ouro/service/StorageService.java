@@ -62,10 +62,11 @@ public class StorageService {
      */
     public String getPrivateDownloadUrl(String publicId, String originalFileName, String storedFileUrl) {
         String resourceType = extractSegment(storedFileUrl, 1, "raw");
+        String deliveryType = extractSegment(storedFileUrl, 2, "upload");
         String format = extractFormat(originalFileName);
         try {
             return cloudinary.privateDownload(publicId, format,
-                    ObjectUtils.asMap("resource_type", resourceType));
+                    ObjectUtils.asMap("resource_type", resourceType, "type", deliveryType));
         } catch (Exception e) {
             throw new RuntimeException("No se pudo generar URL de descarga: " + e.getMessage(), e);
         }
