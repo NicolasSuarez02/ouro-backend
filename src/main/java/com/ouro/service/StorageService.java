@@ -57,15 +57,23 @@ public class StorageService {
     }
 
     /**
-     * Retorna la URL segura de descarga de un archivo dado su public_id y mimeType.
-     * Cloudinary requiere el resource_type correcto (image/video/raw) en la URL.
+     * Genera una URL firmada (signed URL) con expiración de 1 hora.
+     * Extrae resource_type y delivery_type de la URL guardada en DB para evitar
+     * discrepancias entre mimeType y el tipo real que Cloudinary asignó al asset.
      */
-    public String getSecureUrl(String publicId, String mimeType) {
-        return cloudinary.url().secure(true).resourceType(resolveResourceType(mimeType)).generate(publicId);
+    public String getSignedDownloadUrl(String publicId, String storedFileUrl) {
+        String resourceType = extractSegment(storedFileUrl, 1, "raw");
+        String deliveryType = extractSegment(storedFileUrl, 2, "upload");
+        return cloudinary.url()
+                .secure(true)
+                .resourceType(resourceType)
+                .type(deliveryType)
+                .signed(true)
+                .generate(publicId);
     }
 
     public String getRelativePath(Resource.ResourceCategory category, String publicId, String mimeType) {
-        return getSecureUrl(publicId, mimeType);
+        return cloudinary.url().secure(true).resourceType(resolveResourceType(mimeType)).generate(publicId);
     }
 
     /**
@@ -87,5 +95,17 @@ public class StorageService {
         if (mimeType.startsWith("image/")) return "image";
         if (mimeType.startsWith("video/")) return "video";
         return "raw";
+    }
+
+    // Extrae segmento de una URL Cloudinary: https://res.cloudinary.com/{cloud}/{seg1}/{seg2}/...
+    private String extractSegment(String url, int index, String fallback) {
+        if (url == null) return fallback;
+        try {
+            String path = url.replace("https://res.cloudinary.com/", "");
+            String[] segments = path.split("/");
+            return (segments.length > index) ? segments[index] : fallback;
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 }
