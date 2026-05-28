@@ -130,7 +130,8 @@ public class ResourceController {
     }
 
     /**
-     * Descarga un archivo — requiere auth.
+     * Retorna la URL de descarga — requiere auth.
+     * El cliente abre la URL directamente (evita redirect cross-origin con CORS).
      */
     @GetMapping("/{id}/download")
     public ResponseEntity<Object> download(@PathVariable Integer id) {
@@ -138,9 +139,10 @@ public class ResourceController {
             Integer userId = currentUserId();
             Resource resource = resourceService.getForDownload(id, userId);
             String url = resourceService.getDownloadUrl(resource);
-            return ResponseEntity.status(HttpStatus.FOUND)
-                    .header(HttpHeaders.LOCATION, url)
-                    .build();
+            Map<String, Object> result = new HashMap<>();
+            result.put("url", url);
+            result.put("fileName", resource.getOriginalFileName());
+            return new ResponseEntity<>(result, HttpStatus.OK);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
