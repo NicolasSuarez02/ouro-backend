@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -20,16 +21,19 @@ public class StorageService {
 
     /**
      * Sube un archivo de recurso a Cloudinary.
-     * Retorna el public_id para gestión posterior (eliminación).
+     * Retorna map con "publicId" (para borrar) y "secureUrl" (para guardar en DB).
      */
-    public String save(MultipartFile file, Resource.ResourceCategory category) {
+    public Map<String, String> save(MultipartFile file, Resource.ResourceCategory category) {
         try {
             Map result = cloudinary.uploader().upload(file.getBytes(),
                 ObjectUtils.asMap(
                     "folder", "ouro/" + category.name().toLowerCase(),
                     "resource_type", "auto"
                 ));
-            return (String) result.get("public_id");
+            Map<String, String> uploadResult = new HashMap<>();
+            uploadResult.put("publicId", (String) result.get("public_id"));
+            uploadResult.put("secureUrl", (String) result.get("secure_url"));
+            return uploadResult;
         } catch (IOException e) {
             throw new RuntimeException("No se pudo subir el archivo a Cloudinary", e);
         }

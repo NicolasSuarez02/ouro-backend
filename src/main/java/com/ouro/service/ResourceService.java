@@ -49,15 +49,15 @@ public class ResourceService {
             throw new RuntimeException("El archivo está vacío");
         }
 
-        String storedName = storageService.save(file, request.getCategory());
+        java.util.Map<String, String> uploaded = storageService.save(file, request.getCategory());
 
         Resource resource = new Resource();
         resource.setTitle(request.getTitle());
         resource.setDescription(request.getDescription());
         resource.setCategory(request.getCategory());
         resource.setOriginalFileName(file.getOriginalFilename());
-        resource.setStoredFileName(storedName);
-        resource.setFilePath(storageService.getRelativePath(request.getCategory(), storedName, file.getContentType()));
+        resource.setStoredFileName(uploaded.get("publicId"));
+        resource.setFilePath(uploaded.get("secureUrl"));
         resource.setFileSize(file.getSize());
         resource.setMimeType(file.getContentType());
         resource.setUploadedBy(uploader);
@@ -158,7 +158,7 @@ public class ResourceService {
     }
 
     public String getDownloadUrl(Resource resource) {
-        return storageService.getSecureUrl(resource.getStoredFileName(), resource.getMimeType());
+        return resource.getFilePath();
     }
 
     private User verifyAdmin(Integer adminUserId) {
