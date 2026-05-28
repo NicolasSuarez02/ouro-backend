@@ -57,19 +57,18 @@ public class StorageService {
     }
 
     /**
-     * Genera una URL firmada (signed URL) con expiración de 1 hora.
-     * Extrae resource_type y delivery_type de la URL guardada en DB para evitar
-     * discrepancias entre mimeType y el tipo real que Cloudinary asignó al asset.
+     * Genera una URL de descarga privada via api.cloudinary.com (no CDN).
+     * Usa API key + firma → funciona sin importar restricciones de acceso de la cuenta.
      */
-    public String getSignedDownloadUrl(String publicId, String storedFileUrl) {
+    public String getPrivateDownloadUrl(String publicId, String originalFileName, String storedFileUrl) {
         String resourceType = extractSegment(storedFileUrl, 1, "raw");
-        String deliveryType = extractSegment(storedFileUrl, 2, "upload");
-        return cloudinary.url()
-                .secure(true)
-                .resourceType(resourceType)
-                .type(deliveryType)
-                .signed(true)
-                .generate(publicId);
+        String format = extractFormat(originalFileName);
+        try {
+            return cloudinary.privateDownload(publicId, format,
+                    ObjectUtils.asMap("resource_type", resourceType));
+        } catch (Exception e) {
+            throw new RuntimeException("No se pudo generar URL de descarga: " + e.getMessage(), e);
+        }
     }
 
     public String getRelativePath(Resource.ResourceCategory category, String publicId, String mimeType) {
@@ -107,5 +106,11 @@ public class StorageService {
         } catch (Exception e) {
             return fallback;
         }
+    }
+
+    private String extractFormat(String originalFileName) {
+        if (originalFileName == null) return null;
+        int lastDot = originalFileName.lastIndexOf('.');
+        return (lastDot >= 0) ? originalFileName.substring(lastDot + 1).toLowerCase() : null;
     }
 }

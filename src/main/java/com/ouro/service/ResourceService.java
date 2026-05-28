@@ -158,7 +158,10 @@ public class ResourceService {
     }
 
     public String getDownloadUrl(Resource resource) {
-        return storageService.getSignedDownloadUrl(resource.getStoredFileName(), resource.getFilePath());
+        return storageService.getPrivateDownloadUrl(
+                resource.getStoredFileName(),
+                resource.getOriginalFileName(),
+                resource.getFilePath());
     }
 
     private User verifyAdmin(Integer adminUserId) {
