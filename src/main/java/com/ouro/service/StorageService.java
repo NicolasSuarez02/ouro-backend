@@ -53,11 +53,15 @@ public class StorageService {
     }
 
     /**
-     * Retorna la URL pública de un archivo por su public_id.
-     * Usado por ResourceService para guardar filePath en DB.
+     * Retorna la URL segura de descarga de un archivo dado su public_id y mimeType.
+     * Cloudinary requiere el resource_type correcto (image/video/raw) en la URL.
      */
-    public String getRelativePath(Resource.ResourceCategory category, String publicId) {
-        return cloudinary.url().secure(true).resourceType("auto").generate(publicId);
+    public String getSecureUrl(String publicId, String mimeType) {
+        return cloudinary.url().secure(true).resourceType(resolveResourceType(mimeType)).generate(publicId);
+    }
+
+    public String getRelativePath(Resource.ResourceCategory category, String publicId, String mimeType) {
+        return getSecureUrl(publicId, mimeType);
     }
 
     /**

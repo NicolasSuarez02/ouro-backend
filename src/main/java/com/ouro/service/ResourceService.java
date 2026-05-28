@@ -57,7 +57,7 @@ public class ResourceService {
         resource.setCategory(request.getCategory());
         resource.setOriginalFileName(file.getOriginalFilename());
         resource.setStoredFileName(storedName);
-        resource.setFilePath(storageService.getRelativePath(request.getCategory(), storedName));
+        resource.setFilePath(storageService.getRelativePath(request.getCategory(), storedName, file.getContentType()));
         resource.setFileSize(file.getSize());
         resource.setMimeType(file.getContentType());
         resource.setUploadedBy(uploader);
@@ -158,7 +158,7 @@ public class ResourceService {
     }
 
     public String getDownloadUrl(Resource resource) {
-        return resource.getFilePath();
+        return storageService.getSecureUrl(resource.getStoredFileName(), resource.getMimeType());
     }
 
     private User verifyAdmin(Integer adminUserId) {
