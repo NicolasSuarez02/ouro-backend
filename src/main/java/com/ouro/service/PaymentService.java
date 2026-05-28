@@ -22,9 +22,11 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -92,6 +94,52 @@ public class PaymentService {
 
         Preference preference = new PreferenceClient().create(request, requestOptions);
 
+        return sandbox ? preference.getSandboxInitPoint() : preference.getInitPoint();
+    }
+
+    /**
+     * Crea una preferencia de pago sin appointment previo.
+     * El externalReference codifica los datos de la reserva para reconstruirla en el webhook.
+     * Formato: BOOK|{slotId}|{userId}|{priceAmountCents}|{currency}|{encodedSpecialty}
+     */
+    public String createBookingPreference(
+            Integer slotId, Integer userId,
+            String specialtyName, Integer priceAmountCents, String currency,
+            String therapistFullName, Integer therapistId, String userEmail,
+            String therapistToken) throws MPException, MPApiException {
+
+        String token = resolveToken(therapistToken);
+        MPRequestOptions requestOptions = MPRequestOptions.builder().accessToken(token).build();
+
+        BigDecimal unitPrice = BigDecimal.valueOf(priceAmountCents).divide(BigDecimal.valueOf(100));
+        String encoded = specialtyName != null
+                ? URLEncoder.encode(specialtyName, StandardCharsets.UTF_8) : "";
+        String ref = "BOOK|" + slotId + "|" + userId + "|" + priceAmountCents + "|"
+                + (currency != null ? currency : "ARS") + "|" + encoded;
+
+        PreferenceItemRequest item = PreferenceItemRequest.builder()
+                .title("Sesión de terapia - " + therapistFullName)
+                .quantity(1)
+                .unitPrice(unitPrice)
+                .currencyId(currency != null ? currency : "ARS")
+                .build();
+
+        PreferenceBackUrlsRequest backUrls = PreferenceBackUrlsRequest.builder()
+                .success(frontendUrl + "/pago/exitoso")
+                .pending(frontendUrl + "/pago/pendiente")
+                .failure(frontendUrl + "/pago/fallido")
+                .build();
+
+        PreferenceRequest preferenceRequest = PreferenceRequest.builder()
+                .items(List.of(item))
+                .payer(PreferencePayerRequest.builder().email(userEmail).build())
+                .backUrls(backUrls)
+                .autoReturn("approved")
+                .externalReference(ref)
+                .notificationUrl(backendUrl + "/api/payments/webhook/" + therapistId)
+                .build();
+
+        Preference preference = new PreferenceClient().create(preferenceRequest, requestOptions);
         return sandbox ? preference.getSandboxInitPoint() : preference.getInitPoint();
     }
 

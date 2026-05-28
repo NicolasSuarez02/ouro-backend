@@ -14,18 +14,22 @@ public class TherapistDTO {
     public static class SpecialtyDTO {
         private String name;
         private Integer minBookingLeadHours;
+        private Integer priceAmountCents;
 
         public SpecialtyDTO() {}
 
         public SpecialtyDTO(TherapistSpecialty s) {
             this.name = s.getName();
             this.minBookingLeadHours = s.getMinBookingLeadHours();
+            this.priceAmountCents = s.getPriceAmountCents();
         }
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
         public Integer getMinBookingLeadHours() { return minBookingLeadHours; }
         public void setMinBookingLeadHours(Integer minBookingLeadHours) { this.minBookingLeadHours = minBookingLeadHours; }
+        public Integer getPriceAmountCents() { return priceAmountCents; }
+        public void setPriceAmountCents(Integer priceAmountCents) { this.priceAmountCents = priceAmountCents; }
     }
     
     // Request DTO para crear terapeuta

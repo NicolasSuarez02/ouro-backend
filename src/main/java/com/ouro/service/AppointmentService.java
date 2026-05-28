@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -200,45 +202,121 @@ public class AppointmentService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
 
-        Integer price = slot.getTherapist().getPriceAmountCents();
-        boolean hasPrice = price != null && price > 0;
+        String rawSpecialty = (request.getSpecialtyName() != null && !request.getSpecialtyName().isBlank())
+                ? request.getSpecialtyName() : null;
+
+        List<TherapistSpecialty> specList = slot.getTherapist().getSpecialties();
+        Integer price;
+        String specialtyName;
+        if (rawSpecialty != null) {
+            specialtyName = rawSpecialty;
+            price = specList.stream()
+                    .filter(s -> s.getName().equalsIgnoreCase(specialtyName))
+                    .findFirst()
+                    .map(TherapistSpecialty::getPriceAmountCents)
+                    .orElse(0);
+        } else if (specList.size() == 1) {
+            specialtyName = specList.get(0).getName();
+            price = specList.get(0).getPriceAmountCents();
+        } else {
+            specialtyName = null;
+            price = 0;
+        }
+
+        if (price > 0) {
+            // Sesión de pago: crear preferencia MP sin bloquear el slot.
+            // El appointment se crea recién cuando el webhook confirma el pago.
+            AppointmentDTO.AppointmentResponse response = new AppointmentDTO.AppointmentResponse();
+            try {
+                String paymentUrl = paymentService.createBookingPreference(
+                        slot.getId(), userId, specialtyName, price,
+                        slot.getTherapist().getPriceCurrency(),
+                        slot.getTherapist().getUser().getFullName(),
+                        slot.getTherapist().getId(),
+                        user.getEmail(),
+                        slot.getTherapist().getMpAccessToken());
+                response.setPaymentUrl(paymentUrl);
+            } catch (Exception e) {
+                log.error("Error al crear preferencia MP: {}", e.getMessage());
+                throw new RuntimeException("No se pudo iniciar el proceso de pago. Intentá nuevamente.");
+            }
+            return response;
+        }
+
+        // Sesión gratuita: reservar directo
+        Appointment appointment = new Appointment();
+        appointment.setTherapist(slot.getTherapist());
+        appointment.setUser(user);
+        appointment.setStartAt(slot.getStartAt());
+        appointment.setEndAt(slot.getEndAt());
+        appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
+        appointment.setPriceAmountCents(0);
+        appointment.setCurrency(slot.getTherapist().getPriceCurrency());
+        appointment.setNotes(request.getNotes());
+        if (specialtyName != null) appointment.setSpecialtyName(specialtyName);
+
+        Appointment savedAppointment = appointmentRepository.save(appointment);
+        slot.setStatus(TimeSlot.SlotStatus.RESERVED);
+        slot.setAppointment(savedAppointment);
+        timeSlotRepository.save(slot);
+
+        return new AppointmentDTO.AppointmentResponse(savedAppointment);
+    }
+
+    /**
+     * Crea un appointment RESERVED a partir del externalReference del webhook MP.
+     * Formato: BOOK|{slotId}|{userId}|{priceAmountCents}|{currency}|{encodedSpecialty}
+     */
+    @Transactional
+    public void createAppointmentFromBookingRef(String externalRef) {
+        String[] parts = externalRef.split("\\|", 6);
+        if (parts.length < 5) {
+            log.error("externalRef inválido: {}", externalRef);
+            return;
+        }
+        Integer slotId = Integer.parseInt(parts[1]);
+        Integer userId = Integer.parseInt(parts[2]);
+        Integer priceAmountCents = Integer.parseInt(parts[3]);
+        String currency = parts[4];
+        String specialtyName = null;
+        if (parts.length > 5 && !parts[5].isBlank()) {
+            specialtyName = URLDecoder.decode(parts[5], StandardCharsets.UTF_8);
+        }
+
+        TimeSlot slot = timeSlotRepository.findByIdForUpdate(slotId)
+                .orElseThrow(() -> new RuntimeException("Slot no encontrado: " + slotId));
+
+        if (slot.getStatus() != TimeSlot.SlotStatus.FREE) {
+            log.error("Slot {} ya no está libre al confirmar pago. Requiere revisión manual.", slotId);
+            return;
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
 
         Appointment appointment = new Appointment();
         appointment.setTherapist(slot.getTherapist());
         appointment.setUser(user);
         appointment.setStartAt(slot.getStartAt());
         appointment.setEndAt(slot.getEndAt());
-        appointment.setStatus(hasPrice
-                ? Appointment.AppointmentStatus.PENDING_PAYMENT
-                : Appointment.AppointmentStatus.RESERVED);
-        appointment.setPriceAmountCents(price != null ? price : 0);
-        appointment.setCurrency(slot.getTherapist().getPriceCurrency());
-        appointment.setNotes(request.getNotes());
-        if (request.getSpecialtyName() != null && !request.getSpecialtyName().isBlank()) {
-            appointment.setSpecialtyName(request.getSpecialtyName());
-        }
+        appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
+        appointment.setPriceAmountCents(priceAmountCents);
+        appointment.setCurrency(currency);
+        if (specialtyName != null) appointment.setSpecialtyName(specialtyName);
 
-        Appointment savedAppointment = appointmentRepository.save(appointment);
-
-        // Marcar el slot como reservado
+        Appointment saved = appointmentRepository.save(appointment);
         slot.setStatus(TimeSlot.SlotStatus.RESERVED);
-        slot.setAppointment(savedAppointment);
+        slot.setAppointment(saved);
         timeSlotRepository.save(slot);
 
-        AppointmentDTO.AppointmentResponse response = new AppointmentDTO.AppointmentResponse(savedAppointment);
-
-        // Crear preferencia de pago en Mercado Pago usando el token del terapeuta
-        if (hasPrice) {
-            try {
-                String therapistToken = slot.getTherapist().getMpAccessToken();
-                String paymentUrl = paymentService.createPaymentPreference(savedAppointment, therapistToken);
-                response.setPaymentUrl(paymentUrl);
-            } catch (Exception e) {
-                log.error("Error al crear preferencia MP para turno {}: {}", savedAppointment.getId(), e.getMessage());
-            }
+        String zoomUrl = zoomService.createMeeting(saved);
+        if (zoomUrl != null) {
+            saved.setZoomJoinUrl(zoomUrl);
+            appointmentRepository.save(saved);
         }
 
-        return response;
+        notifyTherapistOfNewAppointment(saved);
+        log.info("Appointment {} creado desde pago confirmado (slot {})", saved.getId(), slotId);
     }
 
     /**

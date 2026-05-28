@@ -20,6 +20,9 @@ public class TherapistSpecialty {
     @Column(name = "min_booking_lead_hours", nullable = false)
     private Integer minBookingLeadHours = 1;
 
+    @Column(name = "price_amount_cents", nullable = false)
+    private Integer priceAmountCents = 0;
+
     public TherapistSpecialty() {}
 
     public Integer getId() { return id; }
@@ -33,4 +36,7 @@ public class TherapistSpecialty {
 
     public Integer getMinBookingLeadHours() { return minBookingLeadHours; }
     public void setMinBookingLeadHours(Integer minBookingLeadHours) { this.minBookingLeadHours = minBookingLeadHours; }
+
+    public Integer getPriceAmountCents() { return priceAmountCents; }
+    public void setPriceAmountCents(Integer priceAmountCents) { this.priceAmountCents = priceAmountCents; }
 }

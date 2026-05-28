@@ -120,20 +120,10 @@ public class TherapistService {
         Therapist therapist = new Therapist();
         therapist.setUser(user);
         therapist.setBio(request.getBio());
-        therapist.setSpecialty(request.getSpecialty());
         therapist.setPhotoUrl(request.getPhotoUrl());
 
-        if (request.getPriceAmountCents() != null) {
-            therapist.setPriceAmountCents(request.getPriceAmountCents());
-        }
-        if (request.getPriceCurrency() != null) {
-            therapist.setPriceCurrency(request.getPriceCurrency());
-        }
         if (request.getMpAccessToken() != null && !request.getMpAccessToken().isBlank()) {
             therapist.setMpAccessToken(request.getMpAccessToken().trim());
-        }
-        if (request.getMinBookingLeadHours() != null) {
-            therapist.setMinBookingLeadHours(request.getMinBookingLeadHours());
         }
 
         Therapist saved = therapistRepository.save(therapist);
@@ -147,12 +137,10 @@ public class TherapistService {
                 sp.setTherapist(saved);
                 sp.setName(sd.getName());
                 sp.setMinBookingLeadHours(sd.getMinBookingLeadHours() != null ? sd.getMinBookingLeadHours() : 1);
+                sp.setPriceAmountCents(sd.getPriceAmountCents() != null ? sd.getPriceAmountCents() : 0);
                 saved.getSpecialties().add(sp);
             }
         }
-
-        // La especialidad principal siempre debe estar en la lista
-        syncPrimarySpecialty(saved);
 
         return toResponse(therapistRepository.save(saved));
     }
@@ -249,26 +237,14 @@ public class TherapistService {
         if (request.getBio() != null) {
             therapist.setBio(request.getBio());
         }
-        if (request.getSpecialty() != null) {
-            therapist.setSpecialty(request.getSpecialty());
-        }
         if (request.getPhotoUrl() != null) {
             therapist.setPhotoUrl(request.getPhotoUrl());
-        }
-        if (request.getPriceAmountCents() != null) {
-            therapist.setPriceAmountCents(request.getPriceAmountCents());
-        }
-        if (request.getPriceCurrency() != null) {
-            therapist.setPriceCurrency(request.getPriceCurrency());
         }
         if (request.getMpAccessToken() != null && !request.getMpAccessToken().isBlank()) {
             therapist.setMpAccessToken(request.getMpAccessToken().trim());
         }
-        if (request.getMinBookingLeadHours() != null) {
-            therapist.setMinBookingLeadHours(request.getMinBookingLeadHours());
-        }
 
-        // Gestión de especialidades: reemplaza todas si viene la lista
+        // Reemplaza todas las especialidades si viene la lista
         if (request.getSpecialties() != null) {
             therapist.getSpecialties().clear();
             for (TherapistDTO.SpecialtyDTO sd : request.getSpecialties()) {
@@ -276,28 +252,12 @@ public class TherapistService {
                 sp.setTherapist(therapist);
                 sp.setName(sd.getName());
                 sp.setMinBookingLeadHours(sd.getMinBookingLeadHours() != null ? sd.getMinBookingLeadHours() : 1);
+                sp.setPriceAmountCents(sd.getPriceAmountCents() != null ? sd.getPriceAmountCents() : 0);
                 therapist.getSpecialties().add(sp);
             }
         }
 
-        // La especialidad principal siempre debe estar en la lista
-        syncPrimarySpecialty(therapist);
-
         return toResponse(therapistRepository.save(therapist));
-    }
-
-    private void syncPrimarySpecialty(Therapist therapist) {
-        String primary = therapist.getSpecialty();
-        if (primary == null || primary.isBlank()) return;
-        boolean present = therapist.getSpecialties().stream()
-                .anyMatch(s -> s.getName().equalsIgnoreCase(primary.trim()));
-        if (!present) {
-            TherapistSpecialty sp = new TherapistSpecialty();
-            sp.setTherapist(therapist);
-            sp.setName(primary.trim());
-            sp.setMinBookingLeadHours(therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1);
-            therapist.getSpecialties().add(0, sp);
-        }
     }
 
     @Transactional

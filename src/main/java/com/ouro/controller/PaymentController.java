@@ -66,9 +66,14 @@ public class PaymentController {
 
                     String externalRef = paymentService.getExternalReferenceIfApproved(paymentId, therapistToken);
                     if (externalRef != null) {
-                        Integer appointmentId = Integer.parseInt(externalRef);
-                        appointmentService.confirmPayment(appointmentId);
-                        log.info("Turno {} confirmado tras pago MP {} (terapeuta {})", appointmentId, paymentId, therapistId);
+                        if (externalRef.startsWith("BOOK|")) {
+                            appointmentService.createAppointmentFromBookingRef(externalRef);
+                            log.info("Appointment creado desde booking ref (pago MP {}, terapeuta {})", paymentId, therapistId);
+                        } else {
+                            Integer appointmentId = Integer.parseInt(externalRef);
+                            appointmentService.confirmPayment(appointmentId);
+                            log.info("Turno {} confirmado (pago MP {}, terapeuta {})", appointmentId, paymentId, therapistId);
+                        }
                     }
                 }
             }
@@ -96,9 +101,14 @@ public class PaymentController {
                     verifyWebhookSignature(httpRequest, paymentId.toString());
                     String externalRef = paymentService.getExternalReferenceIfApproved(paymentId, null);
                     if (externalRef != null) {
-                        Integer appointmentId = Integer.parseInt(externalRef);
-                        appointmentService.confirmPayment(appointmentId);
-                        log.info("Turno {} confirmado tras pago MP {} (webhook genérico)", appointmentId, paymentId);
+                        if (externalRef.startsWith("BOOK|")) {
+                            appointmentService.createAppointmentFromBookingRef(externalRef);
+                            log.info("Appointment creado desde booking ref (pago MP {}, webhook genérico)", paymentId);
+                        } else {
+                            Integer appointmentId = Integer.parseInt(externalRef);
+                            appointmentService.confirmPayment(appointmentId);
+                            log.info("Turno {} confirmado (pago MP {}, webhook genérico)", appointmentId, paymentId);
+                        }
                     }
                 }
             }
