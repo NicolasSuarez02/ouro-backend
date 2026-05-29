@@ -55,6 +55,9 @@ public class Therapist {
     @OneToMany(mappedBy = "therapist", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TherapistSpecialty> specialties = new ArrayList<>();
 
+    @Column(name = "zoom_user_id", length = 100)
+    private String zoomUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -183,6 +186,14 @@ public class Therapist {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getZoomUserId() {
+        return zoomUserId;
+    }
+
+    public void setZoomUserId(String zoomUserId) {
+        this.zoomUserId = zoomUserId;
     }
 
     public List<TherapistSpecialty> getSpecialties() {

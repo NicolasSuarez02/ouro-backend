@@ -26,7 +26,7 @@ public class ZoomService {
 
     private static final Logger log = LoggerFactory.getLogger(ZoomService.class);
     private static final String ZOOM_TOKEN_URL = "https://zoom.us/oauth/token";
-    private static final String ZOOM_MEETINGS_URL = "https://api.zoom.us/v2/users/me/meetings";
+    private static final String ZOOM_USERS_URL = "https://api.zoom.us/v2/users";
     private static final String TIMEZONE = "America/Argentina/Buenos_Aires";
 
     @Value("${zoom.account-id}")
@@ -59,7 +59,44 @@ public class ZoomService {
     }
 
     /**
-     * Crea un meeting de Zoom para el turno dado.
+     * Crea un usuario en la cuenta Zoom de la plataforma (custCreate = sin email de invitación).
+     * Retorna el Zoom userId, o null si falla.
+     */
+    public String createZoomUser(String email, String firstName, String lastName) {
+        try {
+            String accessToken = getAccessToken();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + accessToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> userInfo = new HashMap<>();
+            userInfo.put("email", email);
+            userInfo.put("type", 1);
+            userInfo.put("first_name", firstName);
+            userInfo.put("last_name", lastName != null ? lastName : "");
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("action", "create");
+            requestBody.put("user_info", userInfo);
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(ZOOM_USERS_URL, request, Map.class);
+
+            Map<?, ?> responseBody = response.getBody();
+            if (responseBody != null) {
+                String zoomUserId = (String) responseBody.get("id");
+                log.info("Usuario Zoom creado para {}: {}", email, zoomUserId);
+                return zoomUserId;
+            }
+        } catch (Exception e) {
+            log.error("Error al crear usuario Zoom para {}: {}", email, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Crea un meeting de Zoom para el turno dado, bajo la cuenta del terapeuta.
      * Retorna el join_url del meeting, o null si falla.
      */
     public String createMeeting(Appointment appointment) {
@@ -79,20 +116,35 @@ public class ZoomService {
                     .toMinutes();
 
             Map<String, Object> settings = new HashMap<>();
-            settings.put("join_before_host", true);
+            settings.put("join_before_host", false);
             settings.put("waiting_room", false);
             settings.put("meeting_authentication", false);
 
             Map<String, Object> meetingBody = new HashMap<>();
             meetingBody.put("topic", "Sesión con " + appointment.getTherapist().getUser().getFullName());
-            meetingBody.put("type", 2); // meeting programado
+            meetingBody.put("type", 2);
             meetingBody.put("start_time", startTime);
             meetingBody.put("duration", durationMinutes > 0 ? durationMinutes : 60);
             meetingBody.put("timezone", TIMEZONE);
             meetingBody.put("settings", settings);
 
+            String zoomUserId = appointment.getTherapist().getZoomUserId();
+            String meetingsUrl = (zoomUserId != null && !zoomUserId.isBlank())
+                    ? ZOOM_USERS_URL + "/" + zoomUserId + "/meetings"
+                    : ZOOM_USERS_URL + "/me/meetings";
+
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(meetingBody, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(ZOOM_MEETINGS_URL, request, Map.class);
+            ResponseEntity<Map> response;
+            try {
+                response = restTemplate.postForEntity(meetingsUrl, request, Map.class);
+            } catch (Exception ex) {
+                if (zoomUserId != null && !zoomUserId.isBlank()) {
+                    log.warn("Falló meeting bajo userId {}, reintentando bajo me: {}", zoomUserId, ex.getMessage());
+                    response = restTemplate.postForEntity(ZOOM_USERS_URL + "/me/meetings", request, Map.class);
+                } else {
+                    throw ex;
+                }
+            }
 
             Map<?, ?> responseBody = response.getBody();
             if (responseBody != null) {

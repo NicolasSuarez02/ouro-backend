@@ -131,6 +131,23 @@ public class TherapistController {
     }
 
     /**
+     * POST /api/therapists/{id}/provision-zoom — crea usuario Zoom para un terapeuta existente. Solo ADMIN.
+     */
+    @PostMapping("/{id}/provision-zoom")
+    public ResponseEntity<Object> provisionZoomUser(@PathVariable Integer id) {
+        try {
+            Integer adminUserId = currentUserId();
+            TherapistDTO.TherapistResponse response = therapistService.provisionZoomUser(id, adminUserId);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
      * PUT /api/therapists/{id}/reject — solo para ADMIN.
      */
     @PutMapping("/{id}/reject")

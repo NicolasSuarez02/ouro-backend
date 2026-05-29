@@ -32,6 +32,7 @@ public class TherapistService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final RatingRepository ratingRepository;
+    private final ZoomService zoomService;
 
     @Value("${app.backend.url:http://localhost:8080}")
     private String backendUrl;
@@ -41,12 +42,14 @@ public class TherapistService {
                             TherapistSpecialtyRepository specialtyRepository,
                             UserRepository userRepository,
                             StorageService storageService,
-                            RatingRepository ratingRepository) {
+                            RatingRepository ratingRepository,
+                            ZoomService zoomService) {
         this.therapistRepository = therapistRepository;
         this.specialtyRepository = specialtyRepository;
         this.userRepository = userRepository;
         this.storageService = storageService;
         this.ratingRepository = ratingRepository;
+        this.zoomService = zoomService;
     }
 
     @PostConstruct
@@ -195,6 +198,40 @@ public class TherapistService {
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
         therapist.setApprovalStatus(Therapist.ApprovalStatus.APPROVED);
+        Therapist saved = therapistRepository.save(therapist);
+
+        if (saved.getZoomUserId() == null && saved.getUser() != null) {
+            String[] parts = saved.getUser().getFullName().split(" ", 2);
+            String zoomUserId = zoomService.createZoomUser(
+                    saved.getUser().getEmail(),
+                    parts[0],
+                    parts.length > 1 ? parts[1] : "");
+            if (zoomUserId != null) {
+                saved.setZoomUserId(zoomUserId);
+                saved = therapistRepository.save(saved);
+            }
+        }
+
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public TherapistDTO.TherapistResponse provisionZoomUser(Integer therapistId, Integer adminUserId) {
+        verifyAdmin(adminUserId);
+        Therapist therapist = therapistRepository.findById(therapistId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
+
+        String[] parts = therapist.getUser().getFullName().split(" ", 2);
+        String zoomUserId = zoomService.createZoomUser(
+                therapist.getUser().getEmail(),
+                parts[0],
+                parts.length > 1 ? parts[1] : "");
+
+        if (zoomUserId == null) {
+            throw new RuntimeException("No se pudo crear el usuario de Zoom para el terapeuta");
+        }
+
+        therapist.setZoomUserId(zoomUserId);
         return toResponse(therapistRepository.save(therapist));
     }
 
