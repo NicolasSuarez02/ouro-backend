@@ -60,6 +60,7 @@ public class AppointmentDTO {
         private String specialtyName;
         private String createdAt;
         private String zoomJoinUrl;
+        private String zoomStartUrl;
         // Solo se setea al crear el turno; no es un campo de la entidad
         private String paymentUrl;
 
@@ -83,6 +84,7 @@ public class AppointmentDTO {
             this.notes = appointment.getNotes();
             this.createdAt = appointment.getCreatedAt() != null ? appointment.getCreatedAt().toString() : null;
             this.zoomJoinUrl = appointment.getZoomJoinUrl();
+            this.zoomStartUrl = appointment.getZoomStartUrl();
             this.specialtyName = appointment.getSpecialtyName();
         }
 
@@ -215,6 +217,14 @@ public class AppointmentDTO {
 
         public void setZoomJoinUrl(String zoomJoinUrl) {
             this.zoomJoinUrl = zoomJoinUrl;
+        }
+
+        public String getZoomStartUrl() {
+            return zoomStartUrl;
+        }
+
+        public void setZoomStartUrl(String zoomStartUrl) {
+            this.zoomStartUrl = zoomStartUrl;
         }
 
         public String getPaymentUrl() {

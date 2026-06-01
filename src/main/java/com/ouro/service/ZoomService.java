@@ -95,11 +95,13 @@ public class ZoomService {
         return null;
     }
 
+    public record ZoomMeetingUrls(String joinUrl, String startUrl) {}
+
     /**
      * Crea un meeting de Zoom para el turno dado, bajo la cuenta del terapeuta.
-     * Retorna el join_url del meeting, o null si falla.
+     * Retorna ambas URLs (join para el cliente, start para el terapeuta/host), o null si falla.
      */
-    public String createMeeting(Appointment appointment) {
+    public ZoomMeetingUrls createMeeting(Appointment appointment) {
         try {
             String accessToken = getAccessToken();
 
@@ -149,8 +151,9 @@ public class ZoomService {
             Map<?, ?> responseBody = response.getBody();
             if (responseBody != null) {
                 String joinUrl = (String) responseBody.get("join_url");
-                log.info("Meeting de Zoom creado para turno {}: {}", appointment.getId(), joinUrl);
-                return joinUrl;
+                String startUrl = (String) responseBody.get("start_url");
+                log.info("Meeting de Zoom creado para turno {}: join={}", appointment.getId(), joinUrl);
+                return new ZoomMeetingUrls(joinUrl, startUrl);
             }
         } catch (Exception e) {
             log.error("Error al crear meeting de Zoom para turno {}: {}", appointment.getId(), e.getMessage());

@@ -309,9 +309,10 @@ public class AppointmentService {
         slot.setAppointment(saved);
         timeSlotRepository.save(slot);
 
-        String zoomUrl = zoomService.createMeeting(saved);
-        if (zoomUrl != null) {
-            saved.setZoomJoinUrl(zoomUrl);
+        ZoomService.ZoomMeetingUrls zoomUrls = zoomService.createMeeting(saved);
+        if (zoomUrls != null) {
+            saved.setZoomJoinUrl(zoomUrls.joinUrl());
+            saved.setZoomStartUrl(zoomUrls.startUrl());
             appointmentRepository.save(saved);
         }
 
@@ -334,10 +335,10 @@ public class AppointmentService {
 
         appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
 
-        // Crear meeting de Zoom
-        String zoomUrl = zoomService.createMeeting(appointment);
-        if (zoomUrl != null) {
-            appointment.setZoomJoinUrl(zoomUrl);
+        ZoomService.ZoomMeetingUrls zoomUrls = zoomService.createMeeting(appointment);
+        if (zoomUrls != null) {
+            appointment.setZoomJoinUrl(zoomUrls.joinUrl());
+            appointment.setZoomStartUrl(zoomUrls.startUrl());
         }
 
         Appointment saved = appointmentRepository.save(appointment);

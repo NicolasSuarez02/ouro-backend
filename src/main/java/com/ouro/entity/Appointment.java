@@ -50,6 +50,9 @@ public class Appointment {
     @Column(name = "zoom_join_url", columnDefinition = "TEXT")
     private String zoomJoinUrl;
 
+    @Column(name = "zoom_start_url", columnDefinition = "TEXT")
+    private String zoomStartUrl;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -165,6 +168,14 @@ public class Appointment {
 
     public void setZoomJoinUrl(String zoomJoinUrl) {
         this.zoomJoinUrl = zoomJoinUrl;
+    }
+
+    public String getZoomStartUrl() {
+        return zoomStartUrl;
+    }
+
+    public void setZoomStartUrl(String zoomStartUrl) {
+        this.zoomStartUrl = zoomStartUrl;
     }
 
     public LocalDateTime getCreatedAt() {
