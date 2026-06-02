@@ -512,6 +512,11 @@ public class AppointmentService {
 
         String meetingId = appointment.getZoomMeetingId();
         if (meetingId == null || meetingId.isBlank()) {
+            // Turno creado antes de que se persistiera el meetingId: devolver la URL guardada como fallback
+            String storedUrl = appointment.getZoomStartUrl();
+            if (storedUrl != null && !storedUrl.isBlank()) {
+                return storedUrl;
+            }
             throw new RuntimeException("Este turno no tiene meeting de Zoom asociado");
         }
 

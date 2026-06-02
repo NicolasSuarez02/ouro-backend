@@ -59,6 +59,7 @@ public class AppointmentDTO {
         private String notes;
         private String specialtyName;
         private String createdAt;
+        private String zoomMeetingId;
         private String zoomJoinUrl;
         private String zoomStartUrl;
         // Solo se setea al crear el turno; no es un campo de la entidad
@@ -83,6 +84,7 @@ public class AppointmentDTO {
             this.currency = appointment.getCurrency();
             this.notes = appointment.getNotes();
             this.createdAt = appointment.getCreatedAt() != null ? appointment.getCreatedAt().toString() : null;
+            this.zoomMeetingId = appointment.getZoomMeetingId();
             this.zoomJoinUrl = appointment.getZoomJoinUrl();
             this.zoomStartUrl = appointment.getZoomStartUrl();
             this.specialtyName = appointment.getSpecialtyName();
@@ -209,6 +211,14 @@ public class AppointmentDTO {
 
         public void setCreatedAt(String createdAt) {
             this.createdAt = createdAt;
+        }
+
+        public String getZoomMeetingId() {
+            return zoomMeetingId;
+        }
+
+        public void setZoomMeetingId(String zoomMeetingId) {
+            this.zoomMeetingId = zoomMeetingId;
         }
 
         public String getZoomJoinUrl() {
