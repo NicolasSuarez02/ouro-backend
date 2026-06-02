@@ -237,14 +237,9 @@ public class EmailService {
             String clientHoraNac,
             String especialidad,
             String fechaTurno,
-            String horaTurno,
-            String zoomLink) {
+            String horaTurno) {
 
         String subject = "Nuevo turno confirmado – " + clientNombre;
-
-        String zoomSection = (zoomLink != null && !zoomLink.isBlank())
-                ? "<li><strong>Link Zoom:</strong> <a href=\"" + zoomLink + "\">Unirse a la reunión</a></li>"
-                : "<li><strong>Link Zoom:</strong> Se generará próximamente</li>";
 
         String birthInfo = (clientFechaNac != null && !clientFechaNac.isBlank())
                 ? clientFechaNac + (clientHoraNac != null && !clientHoraNac.isBlank() ? " a las " + clientHoraNac + " hs" : "")
@@ -261,7 +256,6 @@ public class EmailService {
                         <li><strong>Fecha:</strong> %s</li>
                         <li><strong>Hora:</strong> %s hs</li>
                         %s
-                        %s
                     </ul>
                     <h3 style="color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top: 20px;">Datos del cliente</h3>
                     <ul style="list-style: none; padding: 0;">
@@ -270,13 +264,14 @@ public class EmailService {
                         <li><strong>Teléfono:</strong> %s</li>
                         <li><strong>Fecha y hora de nacimiento:</strong> %s</li>
                     </ul>
+                    <p style="margin-top: 20px; color: #555;">Podés ver todos los detalles y acceder a la sesión desde tu panel en <a href="https://www.ouro.com.ar/mis-turnos">ouro.com.ar/mis-turnos</a>.</p>
                     <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
                     <p style="font-size: 12px; color: #999; text-align: center;">Ouro – Tu bienestar es nuestra prioridad</p>
                 </div>
             </body>
             </html>
             """,
-                fechaTurno, horaTurno, zoomSection,
+                fechaTurno, horaTurno,
                 (especialidad != null && !especialidad.isBlank())
                         ? "<li><strong>Tipo de sesión:</strong> " + especialidad + "</li>"
                         : "",

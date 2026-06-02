@@ -98,6 +98,23 @@ public class AppointmentController {
         }
     }
 
+    /** Retorna un start_url fresco para el meeting Zoom — solo el terapeuta del turno. */
+    @GetMapping("/{id}/zoom-start-url")
+    public ResponseEntity<Object> getZoomStartUrl(@PathVariable Integer id) {
+        try {
+            Integer userId = currentUserId();
+            String url = appointmentService.getFreshZoomStartUrl(id, userId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("startUrl", url);
+            return new ResponseEntity<>(result, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     /** Cancela un turno — solo el usuario o el terapeuta del turno. */
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Object> cancelAppointment(@PathVariable Integer id) {

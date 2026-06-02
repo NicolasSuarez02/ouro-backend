@@ -166,8 +166,7 @@ public class AppointmentService {
                     birthTime,
                     appointment.getSpecialtyName(),
                     appointmentDate,
-                    appointmentTime,
-                    appointment.getZoomJoinUrl()
+                    appointmentTime
             );
         } catch (Exception e) {
             log.error("Error al notificar al terapeuta sobre turno {}: {}", appointment.getId(), e.getMessage());
@@ -311,6 +310,7 @@ public class AppointmentService {
 
         ZoomService.ZoomMeetingUrls zoomUrls = zoomService.createMeeting(saved);
         if (zoomUrls != null) {
+            saved.setZoomMeetingId(zoomUrls.meetingId());
             saved.setZoomJoinUrl(zoomUrls.joinUrl());
             saved.setZoomStartUrl(zoomUrls.startUrl());
             appointmentRepository.save(saved);
@@ -337,6 +337,7 @@ public class AppointmentService {
 
         ZoomService.ZoomMeetingUrls zoomUrls = zoomService.createMeeting(appointment);
         if (zoomUrls != null) {
+            appointment.setZoomMeetingId(zoomUrls.meetingId());
             appointment.setZoomJoinUrl(zoomUrls.joinUrl());
             appointment.setZoomStartUrl(zoomUrls.startUrl());
         }
@@ -493,5 +494,31 @@ public class AppointmentService {
                 .collect(Collectors.toList());
 
         return new AppointmentDTO.AgendaResponse(upcoming, past);
+    }
+
+    /**
+     * Retorna un start_url fresco para el meeting de Zoom de un turno.
+     * Solo puede llamarlo el terapeuta del turno (el start_url guardado vence ~2hs después de crearse).
+     */
+    @Transactional(readOnly = true)
+    public String getFreshZoomStartUrl(Integer appointmentId, Integer requestingUserId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + appointmentId));
+
+        boolean isTherapist = appointment.getTherapist().getUser().getId().equals(requestingUserId);
+        if (!isTherapist) {
+            throw new RuntimeException("Solo el terapeuta puede obtener el link de inicio de sesión");
+        }
+
+        String meetingId = appointment.getZoomMeetingId();
+        if (meetingId == null || meetingId.isBlank()) {
+            throw new RuntimeException("Este turno no tiene meeting de Zoom asociado");
+        }
+
+        String freshUrl = zoomService.getStartUrl(meetingId);
+        if (freshUrl == null) {
+            throw new RuntimeException("No se pudo obtener el link de inicio actualizado");
+        }
+        return freshUrl;
     }
 }

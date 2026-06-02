@@ -95,11 +95,11 @@ public class ZoomService {
         return null;
     }
 
-    public record ZoomMeetingUrls(String joinUrl, String startUrl) {}
+    public record ZoomMeetingUrls(String meetingId, String joinUrl, String startUrl) {}
 
     /**
      * Crea un meeting de Zoom para el turno dado, bajo la cuenta del terapeuta.
-     * Retorna ambas URLs (join para el cliente, start para el terapeuta/host), o null si falla.
+     * Retorna meetingId + ambas URLs (join para el cliente, start para el terapeuta/host), o null si falla.
      */
     public ZoomMeetingUrls createMeeting(Appointment appointment) {
         try {
@@ -150,13 +150,43 @@ public class ZoomService {
 
             Map<?, ?> responseBody = response.getBody();
             if (responseBody != null) {
+                String meetingId = String.valueOf(responseBody.get("id"));
                 String joinUrl = (String) responseBody.get("join_url");
                 String startUrl = (String) responseBody.get("start_url");
-                log.info("Meeting de Zoom creado para turno {}: join={}", appointment.getId(), joinUrl);
-                return new ZoomMeetingUrls(joinUrl, startUrl);
+                log.info("Meeting de Zoom creado para turno {}: meetingId={}, join={}", appointment.getId(), meetingId, joinUrl);
+                return new ZoomMeetingUrls(meetingId, joinUrl, startUrl);
             }
         } catch (Exception e) {
             log.error("Error al crear meeting de Zoom para turno {}: {}", appointment.getId(), e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Obtiene un start_url fresco para un meeting existente.
+     * El start_url que devuelve Zoom al crear el meeting vence en ~2hs; este método lo regenera.
+     */
+    public String getStartUrl(String meetingId) {
+        try {
+            String accessToken = getAccessToken();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + accessToken);
+
+            HttpEntity<Void> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    "https://api.zoom.us/v2/meetings/" + meetingId,
+                    org.springframework.http.HttpMethod.GET,
+                    request,
+                    Map.class
+            );
+
+            Map<?, ?> body = response.getBody();
+            if (body != null) {
+                return (String) body.get("start_url");
+            }
+        } catch (Exception e) {
+            log.error("Error al obtener start_url fresco para meeting {}: {}", meetingId, e.getMessage());
         }
         return null;
     }
