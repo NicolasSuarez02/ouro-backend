@@ -437,7 +437,7 @@ public class AppointmentService {
                 throw new RuntimeException("No tenés permiso para ver estos turnos");
             }
         }
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now(ART);
         List<AppointmentDTO.AppointmentResponse> all = appointmentRepository
                 .findByUserIdOrderByStartAtDesc(userId).stream()
                 .map(AppointmentDTO.AppointmentResponse::new)
@@ -445,13 +445,13 @@ public class AppointmentService {
 
         List<AppointmentDTO.AppointmentResponse> upcoming = all.stream()
                 .filter(a -> !a.getStatus().equals("CANCELLED") && !a.getStatus().equals("COMPLETED")
-                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(now))
+                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(now.minusHours(2)))
                 .sorted((a, b) -> a.getStartAt().compareTo(b.getStartAt()))
                 .collect(Collectors.toList());
 
         List<AppointmentDTO.AppointmentResponse> past = all.stream()
                 .filter(a -> a.getStatus().equals("CANCELLED") || a.getStatus().equals("COMPLETED")
-                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(now)))
+                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(now.minusHours(2))))
                 .collect(Collectors.toList());
 
         return new AppointmentDTO.AgendaResponse(upcoming, past);
@@ -476,7 +476,7 @@ public class AppointmentService {
             throw new RuntimeException("No tenés permiso para ver la agenda de este terapeuta");
         }
 
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now(ART);
         List<AppointmentDTO.AppointmentResponse> all = appointmentRepository
                 .findByTherapistIdOrderByStartAtAsc(therapistId).stream()
                 .map(AppointmentDTO.AppointmentResponse::new)
@@ -484,12 +484,12 @@ public class AppointmentService {
 
         List<AppointmentDTO.AppointmentResponse> upcoming = all.stream()
                 .filter(a -> !a.getStatus().equals("CANCELLED") && !a.getStatus().equals("COMPLETED")
-                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(now))
+                        && a.getStartAt() != null && LocalDateTime.parse(a.getStartAt()).isAfter(now.minusHours(2)))
                 .collect(Collectors.toList());
 
         List<AppointmentDTO.AppointmentResponse> past = all.stream()
                 .filter(a -> a.getStatus().equals("CANCELLED") || a.getStatus().equals("COMPLETED")
-                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(now)))
+                        || (a.getStartAt() != null && !LocalDateTime.parse(a.getStartAt()).isAfter(now.minusHours(2))))
                 .sorted((a, b) -> b.getStartAt().compareTo(a.getStartAt()))
                 .collect(Collectors.toList());
 
