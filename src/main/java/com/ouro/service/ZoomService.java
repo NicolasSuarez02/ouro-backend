@@ -163,10 +163,9 @@ public class ZoomService {
     }
 
     /**
-     * Obtiene un start_url fresco para un meeting existente.
-     * El start_url que devuelve Zoom al crear el meeting vence en ~2hs; este método lo regenera.
+     * Elimina un meeting de Zoom. Silencia errores (ej. meeting ya no existe en Zoom).
      */
-    public String getStartUrl(String meetingId) {
+    public void deleteMeeting(String meetingId) {
         try {
             String accessToken = getAccessToken();
 
@@ -174,20 +173,15 @@ public class ZoomService {
             headers.set("Authorization", "Bearer " + accessToken);
 
             HttpEntity<Void> request = new HttpEntity<>(headers);
-            ResponseEntity<Map> response = restTemplate.exchange(
+            restTemplate.exchange(
                     "https://api.zoom.us/v2/meetings/" + meetingId,
-                    org.springframework.http.HttpMethod.GET,
+                    org.springframework.http.HttpMethod.DELETE,
                     request,
-                    Map.class
+                    Void.class
             );
-
-            Map<?, ?> body = response.getBody();
-            if (body != null) {
-                return (String) body.get("start_url");
-            }
+            log.info("Meeting de Zoom {} eliminado", meetingId);
         } catch (Exception e) {
-            log.error("Error al obtener start_url fresco para meeting {}: {}", meetingId, e.getMessage());
+            log.warn("No se pudo eliminar meeting de Zoom {}: {}", meetingId, e.getMessage());
         }
-        return null;
     }
 }

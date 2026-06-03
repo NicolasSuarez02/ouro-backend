@@ -500,7 +500,7 @@ public class AppointmentService {
      * Retorna un start_url fresco para el meeting de Zoom de un turno.
      * Solo puede llamarlo el terapeuta del turno (el start_url guardado vence ~2hs después de crearse).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public String getFreshZoomStartUrl(Integer appointmentId, Integer requestingUserId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new RuntimeException("Turno no encontrado con id: " + appointmentId));
@@ -510,20 +510,22 @@ public class AppointmentService {
             throw new RuntimeException("Solo el terapeuta puede obtener el link de inicio de sesión");
         }
 
-        String meetingId = appointment.getZoomMeetingId();
-        if (meetingId == null || meetingId.isBlank()) {
-            // Turno creado antes de que se persistiera el meetingId: devolver la URL guardada como fallback
-            String storedUrl = appointment.getZoomStartUrl();
-            if (storedUrl != null && !storedUrl.isBlank()) {
-                return storedUrl;
-            }
-            throw new RuntimeException("Este turno no tiene meeting de Zoom asociado");
+        // Eliminar el meeting viejo (si existe) y crear uno nuevo con start_url fresco
+        String oldMeetingId = appointment.getZoomMeetingId();
+        if (oldMeetingId != null && !oldMeetingId.isBlank()) {
+            zoomService.deleteMeeting(oldMeetingId);
         }
 
-        String freshUrl = zoomService.getStartUrl(meetingId);
-        if (freshUrl == null) {
+        ZoomService.ZoomMeetingUrls urls = zoomService.createMeeting(appointment);
+        if (urls == null) {
             throw new RuntimeException("No se pudo obtener el link de inicio actualizado");
         }
-        return freshUrl;
+
+        appointment.setZoomMeetingId(urls.meetingId());
+        appointment.setZoomJoinUrl(urls.joinUrl());
+        appointment.setZoomStartUrl(urls.startUrl());
+        appointmentRepository.save(appointment);
+
+        return urls.startUrl();
     }
 }
