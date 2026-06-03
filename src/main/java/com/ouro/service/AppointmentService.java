@@ -308,14 +308,6 @@ public class AppointmentService {
         slot.setAppointment(saved);
         timeSlotRepository.save(slot);
 
-        ZoomService.ZoomMeetingUrls zoomUrls = zoomService.createMeeting(saved);
-        if (zoomUrls != null) {
-            saved.setZoomMeetingId(zoomUrls.meetingId());
-            saved.setZoomJoinUrl(zoomUrls.joinUrl());
-            saved.setZoomStartUrl(zoomUrls.startUrl());
-            appointmentRepository.save(saved);
-        }
-
         notifyTherapistOfNewAppointment(saved);
         log.info("Appointment {} creado desde pago confirmado (slot {})", saved.getId(), slotId);
     }
@@ -334,13 +326,6 @@ public class AppointmentService {
         }
 
         appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
-
-        ZoomService.ZoomMeetingUrls zoomUrls = zoomService.createMeeting(appointment);
-        if (zoomUrls != null) {
-            appointment.setZoomMeetingId(zoomUrls.meetingId());
-            appointment.setZoomJoinUrl(zoomUrls.joinUrl());
-            appointment.setZoomStartUrl(zoomUrls.startUrl());
-        }
 
         Appointment saved = appointmentRepository.save(appointment);
 
