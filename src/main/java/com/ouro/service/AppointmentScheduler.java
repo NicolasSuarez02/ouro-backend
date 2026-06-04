@@ -12,13 +12,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 
 @Component
 public class AppointmentScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(AppointmentScheduler.class);
+    private static final ZoneId ART = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final AppointmentRepository appointmentRepository;
     private final TimeSlotRepository timeSlotRepository;
@@ -43,7 +44,7 @@ public class AppointmentScheduler {
     @Scheduled(fixedDelay = 3_600_000)
     @Transactional
     public void cancelExpiredAppointments() {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now(ART);
         List<Appointment> expired = appointmentRepository.findPendingPaymentBefore(now);
 
         if (expired.isEmpty()) return;
@@ -70,7 +71,7 @@ public class AppointmentScheduler {
      */
     @Scheduled(fixedDelay = 300_000)
     public void reconcilePendingPayments() {
-        LocalDateTime cutoff = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5);
+        LocalDateTime cutoff = LocalDateTime.now(ART).minusMinutes(5);
         List<Appointment> pending = appointmentRepository.findPaidPendingPaymentsOlderThan(cutoff);
         if (pending.isEmpty()) return;
 

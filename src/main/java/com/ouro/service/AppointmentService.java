@@ -21,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -75,7 +74,7 @@ public class AppointmentService {
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
         int leadHours = getLeadHours(therapist, specialtyName);
-        LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
+        LocalDateTime minStartAt = LocalDateTime.now(ART).plusHours(leadHours);
 
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
@@ -99,7 +98,7 @@ public class AppointmentService {
         com.ouro.entity.Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado"));
         int leadHours = getLeadHours(therapist, specialtyName);
-        LocalDateTime minStartAt = LocalDateTime.now(ZoneOffset.UTC).plusHours(leadHours);
+        LocalDateTime minStartAt = LocalDateTime.now(ART).plusHours(leadHours);
 
         return timeSlotRepository
                 .findByTherapistIdAndStatusAndStartAtBetween(
@@ -152,10 +151,8 @@ public class AppointmentService {
                 }
             }
 
-            String appointmentDate = appointment.getStartAt().atZone(ZoneOffset.UTC)
-                    .withZoneSameInstant(ART).format(DATE_FMT);
-            String appointmentTime = appointment.getStartAt().atZone(ZoneOffset.UTC)
-                    .withZoneSameInstant(ART).format(TIME_FMT);
+            String appointmentDate = appointment.getStartAt().atZone(ART).format(DATE_FMT);
+            String appointmentTime = appointment.getStartAt().atZone(ART).format(TIME_FMT);
 
             emailService.sendNewAppointmentNotificationToTherapist(
                     appointment.getTherapist().getUser().getEmail(),

@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +22,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AvailabilityService {
+
+    private static final ZoneId ART = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final AvailabilityRepository availabilityRepository;
     private final TimeSlotRepository timeSlotRepository;
@@ -59,7 +61,7 @@ public class AvailabilityService {
 
         // Borrar time slots futuros FREE (los RESERVED no se tocan)
         timeSlotRepository.deleteByTherapistIdAndStatusAndStartAtAfter(
-                therapistId, TimeSlot.SlotStatus.FREE, LocalDateTime.now(ZoneOffset.UTC));
+                therapistId, TimeSlot.SlotStatus.FREE, LocalDateTime.now(ART));
 
         if (request.getSlots() == null || request.getSlots().isEmpty()) {
             return new ArrayList<>();

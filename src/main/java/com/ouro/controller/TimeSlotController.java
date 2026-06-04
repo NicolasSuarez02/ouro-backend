@@ -11,7 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,8 +19,9 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/timeslots")
-
 public class TimeSlotController {
+
+    private static final ZoneId ART = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final TimeSlotRepository timeSlotRepository;
     private final TherapistRepository therapistRepository;
@@ -47,7 +48,7 @@ public class TimeSlotController {
                 throw new RuntimeException("No tenés permiso para ver estos turnos");
             }
 
-            LocalDateTime desde = LocalDateTime.now(ZoneOffset.UTC);
+            LocalDateTime desde = LocalDateTime.now(ART);
             LocalDateTime hasta = desde.plusDays(60);
 
             List<TimeSlot> slots = timeSlotRepository
