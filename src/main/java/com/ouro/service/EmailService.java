@@ -1,77 +1,48 @@
 package com.ouro.service;
 
 import com.ouro.dto.EmailDTO;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
-    
-    private final JavaMailSender mailSender;
-    
-    @Value("${spring.mail.username}")
+
+    @Value("${resend.api.key:}")
+    private String resendApiKey;
+
+    @Value("${resend.from.email:noreply@ouro.com.ar}")
     private String fromEmail;
-    
+
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
-    
-    @Autowired
-    public EmailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
-    }
-    
-    /**
-     * Enviar email simple (texto plano)
-     */
-    public EmailDTO.EmailResponse sendSimpleEmail(EmailDTO.SendEmailRequest request) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(request.getTo());
-            message.setSubject(request.getSubject());
-            message.setText(request.getBody());
-            
-            mailSender.send(message);
-            log.info("Email enviado a {}", request.getTo());
-            return new EmailDTO.EmailResponse(true, "Email enviado exitosamente a " + request.getTo());
-        } catch (Exception e) {
-            log.error("Error al enviar email a {}: {}", request.getTo(), e.getMessage(), e);
-            return new EmailDTO.EmailResponse(false, "Error al enviar email: " + e.getMessage());
+
+    private Resend resend;
+
+    @PostConstruct
+    public void init() {
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            resend = new Resend(resendApiKey);
+        } else {
+            log.warn("RESEND_API_KEY no configurado — emails deshabilitados");
         }
+    }
+
+    public EmailDTO.EmailResponse sendSimpleEmail(EmailDTO.SendEmailRequest request) {
+        return send(request.getTo(), request.getSubject(), null, request.getBody());
     }
 
     public EmailDTO.EmailResponse sendHtmlEmail(EmailDTO.SendEmailRequest request) {
-        try {
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-
-            helper.setFrom(fromEmail);
-            helper.setTo(request.getTo());
-            helper.setSubject(request.getSubject());
-            helper.setText(request.getBody(), true);
-
-            mailSender.send(mimeMessage);
-            log.info("Email HTML enviado a {}", request.getTo());
-            return new EmailDTO.EmailResponse(true, "Email HTML enviado exitosamente a " + request.getTo());
-        } catch (Exception e) {
-            log.error("Error al enviar email HTML a {}: {}", request.getTo(), e.getMessage(), e);
-            return new EmailDTO.EmailResponse(false, "Error al enviar email HTML: " + e.getMessage());
-        }
+        return send(request.getTo(), request.getSubject(), request.getBody(), null);
     }
-    
-    /**
-     * Enviar email (detecta automáticamente si es HTML o texto)
-     */
+
     public EmailDTO.EmailResponse sendEmail(EmailDTO.SendEmailRequest request) {
         if (request.isHtml()) {
             return sendHtmlEmail(request);
@@ -79,15 +50,10 @@ public class EmailService {
             return sendSimpleEmail(request);
         }
     }
-    
-    /**
-     * Enviar email de verificación con token
-     */
+
     public EmailDTO.EmailResponse sendVerificationEmail(String toEmail, String fullName, String token) {
         String verificationUrl = frontendUrl + "/verify-email?token=" + token;
-        
         String subject = "Verifica tu cuenta - Ouro";
-        
         String body = String.format(
             """
             <html>
@@ -97,14 +63,9 @@ public class EmailService {
                     <p>Gracias por registrarte en nuestra plataforma.</p>
                     <p>Para completar tu registro y verificar tu cuenta, por favor haz click en el siguiente botón:</p>
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="%s" 
-                           style="background-color: #4A90E2; 
-                                  color: white; 
-                                  padding: 12px 30px; 
-                                  text-decoration: none; 
-                                  border-radius: 5px; 
-                                  display: inline-block;
-                                  font-weight: bold;">
+                        <a href="%s"
+                           style="background-color: #4A90E2; color: white; padding: 12px 30px;
+                                  text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                             Verificar mi cuenta
                         </a>
                     </div>
@@ -114,33 +75,22 @@ public class EmailService {
                         Este enlace expirará en 24 horas por seguridad.
                     </p>
                     <p style="font-size: 12px; color: #666;">
-                        Si no creaste esta cuenta, puedes ignorar este mensaje.
+                        Si no creaste esta cuenta, podés ignorar este mensaje.
                     </p>
                     <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
-                    <p style="font-size: 12px; color: #999; text-align: center;">
-                        Ouro - Tu bienestar es nuestra prioridad
-                    </p>
+                    <p style="font-size: 12px; color: #999; text-align: center;">Ouro - Tu bienestar es nuestra prioridad</p>
                 </div>
             </body>
             </html>
             """,
             fullName, verificationUrl, verificationUrl
         );
-        
-        EmailDTO.SendEmailRequest request = new EmailDTO.SendEmailRequest(toEmail, subject, body);
-        request.setHtml(true);
-        
-        return sendEmail(request);
+        return send(toEmail, subject, body, null);
     }
-    
-    /**
-     * Enviar email de reset de contraseña
-     */
+
     public EmailDTO.EmailResponse sendPasswordResetEmail(String toEmail, String fullName, String token) {
         String resetUrl = frontendUrl + "/reset-password?token=" + token;
-
         String subject = "Restablecer contraseña - Ouro";
-
         String body = String.format(
             """
             <html>
@@ -152,13 +102,8 @@ public class EmailService {
                     <p>Haz click en el siguiente botón para crear una nueva contraseña:</p>
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="%s"
-                           style="background-color: #4A90E2;
-                                  color: white;
-                                  padding: 12px 30px;
-                                  text-decoration: none;
-                                  border-radius: 5px;
-                                  display: inline-block;
-                                  font-weight: bold;">
+                           style="background-color: #4A90E2; color: white; padding: 12px 30px;
+                                  text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                             Restablecer contraseña
                         </a>
                     </div>
@@ -168,44 +113,34 @@ public class EmailService {
                         Este enlace expirará en 1 hora por seguridad.
                     </p>
                     <p style="font-size: 12px; color: #666;">
-                        Si no solicitaste restablecer tu contraseña, puedes ignorar este mensaje. Tu contraseña no cambiará.
+                        Si no solicitaste restablecer tu contraseña, podés ignorar este mensaje.
                     </p>
                     <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
-                    <p style="font-size: 12px; color: #999; text-align: center;">
-                        Ouro - Tu bienestar es nuestra prioridad
-                    </p>
+                    <p style="font-size: 12px; color: #999; text-align: center;">Ouro - Tu bienestar es nuestra prioridad</p>
                 </div>
             </body>
             </html>
             """,
             fullName, resetUrl, resetUrl
         );
-
-        EmailDTO.SendEmailRequest request = new EmailDTO.SendEmailRequest(toEmail, subject, body);
-        request.setHtml(true);
-
-        return sendEmail(request);
+        return send(toEmail, subject, body, null);
     }
 
-    /**
-     * Enviar email de confirmación de cita para terapeutas
-     */
     public EmailDTO.EmailResponse sendAppointmentConfirmation(
-            String therapistEmail, 
-            String clientName, 
-            String appointmentDate, 
+            String therapistEmail,
+            String clientName,
+            String appointmentDate,
             String appointmentTime,
             String zoomLink) {
-        
+
         String subject = "Nueva Cita Agendada - " + clientName;
-        
         String body = String.format(
             """
             <html>
             <body>
                 <h2>Nueva Cita Agendada</h2>
                 <p>Hola,</p>
-                <p>Se ha agendado una nueva cita:</p>
+                <p>Se ha agendada una nueva cita:</p>
                 <ul>
                     <li><strong>Cliente:</strong> %s</li>
                     <li><strong>Fecha:</strong> %s</li>
@@ -218,16 +153,9 @@ public class EmailService {
             """,
             clientName, appointmentDate, appointmentTime, zoomLink
         );
-        
-        EmailDTO.SendEmailRequest request = new EmailDTO.SendEmailRequest(therapistEmail, subject, body);
-        request.setHtml(true);
-        
-        return sendEmail(request);
+        return send(therapistEmail, subject, body, null);
     }
-    
-    /**
-     * Notificación al terapeuta con todos los datos del cliente cuando se confirma un turno
-     */
+
     public void sendNewAppointmentNotificationToTherapist(
             String therapistEmail,
             String clientNombre,
@@ -240,7 +168,6 @@ public class EmailService {
             String horaTurno) {
 
         String subject = "Nuevo turno confirmado – " + clientNombre;
-
         String birthInfo = (clientFechaNac != null && !clientFechaNac.isBlank())
                 ? clientFechaNac + (clientHoraNac != null && !clientHoraNac.isBlank() ? " a las " + clientHoraNac + " hs" : "")
                 : "No informado";
@@ -264,7 +191,9 @@ public class EmailService {
                         <li><strong>Teléfono:</strong> %s</li>
                         <li><strong>Fecha y hora de nacimiento:</strong> %s</li>
                     </ul>
-                    <p style="margin-top: 20px; color: #555;">Podés ver todos los detalles y acceder a la sesión desde tu panel en <a href="https://www.ouro.com.ar/mis-turnos">ouro.com.ar/mis-turnos</a>.</p>
+                    <p style="margin-top: 20px; color: #555;">Podés ver todos los detalles y acceder a la sesión desde tu panel en
+                        <a href="https://www.ouro.com.ar/mis-turnos">ouro.com.ar/mis-turnos</a>.
+                    </p>
                     <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
                     <p style="font-size: 12px; color: #999; text-align: center;">Ouro – Tu bienestar es nuestra prioridad</p>
                 </div>
@@ -277,24 +206,17 @@ public class EmailService {
                         : "",
                 clientNombre, clientEmail, clientTelefono, birthInfo
         );
-
-        EmailDTO.SendEmailRequest request = new EmailDTO.SendEmailRequest(therapistEmail, subject, body);
-        request.setHtml(true);
-        sendEmail(request);
+        send(therapistEmail, subject, body, null);
     }
 
-    /**
-     * Enviar email de recordatorio de cita
-     */
     public EmailDTO.EmailResponse sendAppointmentReminder(
             String recipientEmail,
             String recipientName,
             String appointmentDate,
             String appointmentTime,
             String zoomLink) {
-        
+
         String subject = "Recordatorio de Cita - " + appointmentDate;
-        
         String body = String.format(
             """
             <html>
@@ -307,17 +229,34 @@ public class EmailService {
                     <li><strong>Hora:</strong> %s</li>
                     <li><strong>Link Zoom:</strong> <a href="%s">Unirse a la reunión</a></li>
                 </ul>
-                <p>Te esperamos!</p>
+                <p>¡Te esperamos!</p>
                 <p>Saludos,<br>Equipo Ouro</p>
             </body>
             </html>
             """,
             recipientName, appointmentDate, appointmentTime, zoomLink
         );
-        
-        EmailDTO.SendEmailRequest request = new EmailDTO.SendEmailRequest(recipientEmail, subject, body);
-        request.setHtml(true);
-        
-        return sendEmail(request);
+        return send(recipientEmail, subject, body, null);
+    }
+
+    private EmailDTO.EmailResponse send(String to, String subject, String html, String text) {
+        if (resend == null) {
+            log.warn("Email no enviado (Resend no configurado): to={} subject={}", to, subject);
+            return new EmailDTO.EmailResponse(false, "Email deshabilitado: RESEND_API_KEY no configurado");
+        }
+        try {
+            CreateEmailOptions.Builder builder = CreateEmailOptions.builder()
+                    .from("Ouro <" + fromEmail + ">")
+                    .to(to)
+                    .subject(subject);
+            if (html != null) builder.html(html);
+            if (text != null) builder.text(text);
+            resend.emails().send(builder.build());
+            log.info("Email enviado a {}", to);
+            return new EmailDTO.EmailResponse(true, "Email enviado exitosamente");
+        } catch (ResendException e) {
+            log.error("Error al enviar email a {}: {}", to, e.getMessage());
+            return new EmailDTO.EmailResponse(false, "Error al enviar email: " + e.getMessage());
+        }
     }
 }
