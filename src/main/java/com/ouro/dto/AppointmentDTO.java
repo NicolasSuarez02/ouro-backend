@@ -7,6 +7,18 @@ import java.util.List;
 
 public class AppointmentDTO {
 
+    // Request para reprogramar un turno
+    public static class RescheduleRequest {
+
+        @NotNull(message = "newTimeSlotId es requerido")
+        private Integer newTimeSlotId;
+
+        public RescheduleRequest() {}
+
+        public Integer getNewTimeSlotId() { return newTimeSlotId; }
+        public void setNewTimeSlotId(Integer newTimeSlotId) { this.newTimeSlotId = newTimeSlotId; }
+    }
+
     // Request para reservar un turno
     public static class BookAppointmentRequest {
 

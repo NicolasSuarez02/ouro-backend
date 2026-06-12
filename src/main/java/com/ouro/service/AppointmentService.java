@@ -479,6 +479,60 @@ public class AppointmentService {
     }
 
     /**
+     * El terapeuta reprograma un turno a un nuevo slot libre de su agenda.
+     * Libera el slot anterior y limpia las URLs de Zoom (se regeneran al iniciar sesión).
+     */
+    @Transactional
+    public AppointmentDTO.AppointmentResponse rescheduleAppointment(Integer appointmentId, Integer newTimeSlotId, Integer userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Turno no encontrado"));
+
+        boolean isTherapist = appointment.getTherapist().getUser().getId().equals(userId);
+        if (!isTherapist) {
+            throw new RuntimeException("Solo el terapeuta puede reprogramar el turno");
+        }
+
+        if (appointment.getStatus() != Appointment.AppointmentStatus.RESERVED) {
+            throw new RuntimeException("Solo se pueden reprogramar turnos con estado Reservado");
+        }
+
+        TimeSlot newSlot = timeSlotRepository.findByIdForUpdate(newTimeSlotId)
+                .orElseThrow(() -> new RuntimeException("El slot seleccionado no existe"));
+
+        if (newSlot.getStatus() != TimeSlot.SlotStatus.FREE) {
+            throw new RuntimeException("El horario seleccionado ya no está disponible");
+        }
+
+        if (!newSlot.getTherapist().getId().equals(appointment.getTherapist().getId())) {
+            throw new RuntimeException("El slot no pertenece a tu agenda");
+        }
+
+        // Liberar slot viejo
+        timeSlotRepository.findByAppointmentId(appointmentId).ifPresent(oldSlot -> {
+            oldSlot.setStatus(TimeSlot.SlotStatus.FREE);
+            oldSlot.setAppointment(null);
+            timeSlotRepository.save(oldSlot);
+        });
+
+        // Actualizar turno con nueva fecha/hora y limpiar Zoom (se crea al iniciar sesión)
+        appointment.setStartAt(newSlot.getStartAt());
+        appointment.setEndAt(newSlot.getEndAt());
+        appointment.setZoomMeetingId(null);
+        appointment.setZoomJoinUrl(null);
+        appointment.setZoomStartUrl(null);
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // Reservar slot nuevo
+        newSlot.setStatus(TimeSlot.SlotStatus.RESERVED);
+        newSlot.setAppointment(saved);
+        timeSlotRepository.save(newSlot);
+
+        log.info("Turno {} reprogramado al slot {} por terapeuta userId={}", appointmentId, newTimeSlotId, userId);
+        return new AppointmentDTO.AppointmentResponse(saved);
+    }
+
+    /**
      * Retorna un start_url fresco para el meeting de Zoom de un turno.
      * Solo puede llamarlo el terapeuta del turno (el start_url guardado vence ~2hs después de crearse).
      */
