@@ -1,7 +1,6 @@
 package com.ouro.service;
 
 import com.mercadopago.core.MPRequestOptions;
-import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preference.PreferenceBackUrlsRequest;
 import com.mercadopago.client.preference.PreferenceClient;
 import com.mercadopago.client.preference.PreferenceItemRequest;
@@ -9,8 +8,6 @@ import com.mercadopago.client.preference.PreferencePayerRequest;
 import com.mercadopago.client.preference.PreferenceRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
-import com.mercadopago.net.MPResponse;
-import com.mercadopago.resources.payment.Payment;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mercadopago.resources.preference.Preference;
@@ -164,23 +161,30 @@ public class PaymentService {
     /**
      * Obtiene el external_reference de un pago aprobado usando el token del terapeuta.
      * Retorna null si el pago no está aprobado o si hay un error.
+     * Usa HTTP directo (bypasea el SDK para evitar bug de MPRequestOptions en 2.1.16).
      */
     public String getExternalReferenceIfApproved(Long paymentId, String therapistToken) {
         String token = resolveToken(therapistToken);
         try {
-            MPRequestOptions requestOptions = MPRequestOptions.builder()
-                    .accessToken(token)
+            String url = "https://api.mercadopago.com/v1/payments/" + paymentId;
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token)
+                    .GET()
                     .build();
-            Payment payment = new PaymentClient().get(paymentId, requestOptions);
-            log.info("Webhook pago {} status: {}", paymentId, payment.getStatus());
-            if ("approved".equals(payment.getStatus())) {
-                return payment.getExternalReference();
+            HttpResponse<String> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = new ObjectMapper().readTree(response.body());
+                String status = root.path("status").asText();
+                log.info("Webhook pago {} status: {}", paymentId, status);
+                if ("approved".equals(status)) {
+                    return root.path("external_reference").asText(null);
+                }
+            } else {
+                log.error("Error MP al consultar pago {}. HTTP {}: {}", paymentId,
+                        response.statusCode(), response.body());
             }
-        } catch (MPApiException e) {
-            MPResponse resp = e.getApiResponse();
-            log.error("Error MP al consultar pago {}. HTTP {}: {}", paymentId,
-                    resp != null ? resp.getStatusCode() : "?",
-                    resp != null ? resp.getContent() : e.getMessage());
         } catch (Exception e) {
             log.error("Error al consultar pago {} en MP: {}", paymentId, e.getMessage());
         }
