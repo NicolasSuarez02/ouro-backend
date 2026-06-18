@@ -546,10 +546,17 @@ public class AppointmentService {
             throw new RuntimeException("Solo el terapeuta puede obtener el link de inicio de sesión");
         }
 
-        // Eliminar el meeting viejo (si existe) y crear uno nuevo con start_url fresco
+        // Si hay un meeting existente, intentar refrescar el start_url sin recrearlo.
+        // Recrear el meeting cambiaría el join_url, dejando al cliente en una sala distinta.
         String oldMeetingId = appointment.getZoomMeetingId();
         if (oldMeetingId != null && !oldMeetingId.isBlank()) {
-            zoomService.deleteMeeting(oldMeetingId);
+            String freshStartUrl = zoomService.getStartUrl(oldMeetingId);
+            if (freshStartUrl != null) {
+                appointment.setZoomStartUrl(freshStartUrl);
+                appointmentRepository.save(appointment);
+                return freshStartUrl;
+            }
+            // Meeting ya no existe en Zoom → crear uno nuevo
         }
 
         ZoomService.ZoomMeetingUrls urls = zoomService.createMeeting(appointment);
