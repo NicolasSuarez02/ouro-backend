@@ -99,7 +99,7 @@ public class UserController {
 
         try {
             User user = userService.login(request.getEmail(), request.getPassword());
-            String token = jwtService.generateToken(user);
+            String token = jwtService.generateToken(user, request.isRememberMe());
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);

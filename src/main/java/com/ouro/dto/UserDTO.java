@@ -297,6 +297,8 @@ public class UserDTO {
         @NotBlank(message = "Contraseña es requerida")
         private String password;
 
+        private boolean rememberMe;
+
         public LoginRequest() {
         }
 
@@ -314,6 +316,14 @@ public class UserDTO {
 
         public void setPassword(String password) {
             this.password = password;
+        }
+
+        public boolean isRememberMe() {
+            return rememberMe;
+        }
+
+        public void setRememberMe(boolean rememberMe) {
+            this.rememberMe = rememberMe;
         }
     }
 
