@@ -30,4 +30,7 @@ public interface TimeSlotRepository extends JpaRepository<TimeSlot, Integer> {
     List<TimeSlot> findByTherapistId(Integer therapistId);
 
     void deleteByTherapistId(Integer therapistId);
+
+    @Query("SELECT MAX(s.startAt) FROM TimeSlot s WHERE s.therapist.id = :therapistId AND s.status = 'FREE'")
+    Optional<LocalDateTime> findMaxFreeSlotStartAt(@Param("therapistId") Integer therapistId);
 }

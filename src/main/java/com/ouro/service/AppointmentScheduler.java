@@ -25,16 +25,34 @@ public class AppointmentScheduler {
     private final TimeSlotRepository timeSlotRepository;
     private final PaymentService paymentService;
     private final AppointmentService appointmentService;
+    private final AvailabilityService availabilityService;
 
     @Autowired
     public AppointmentScheduler(AppointmentRepository appointmentRepository,
                                 TimeSlotRepository timeSlotRepository,
                                 PaymentService paymentService,
-                                AppointmentService appointmentService) {
+                                AppointmentService appointmentService,
+                                AvailabilityService availabilityService) {
         this.appointmentRepository = appointmentRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.paymentService = paymentService;
         this.appointmentService = appointmentService;
+        this.availabilityService = availabilityService;
+    }
+
+    /**
+     * Extiende los slots FREE de todos los terapeutas aprobados hasta hoy+60 días.
+     * Corre a las 3am ART todos los días.
+     */
+    @Scheduled(cron = "0 0 3 * * *", zone = "America/Argentina/Buenos_Aires")
+    public void extendTherapistSlots() {
+        log.info("Extendiendo slots de terapeutas hasta hoy+60 días");
+        try {
+            availabilityService.extendSlotsForAllTherapists();
+            log.info("Extensión de slots completada");
+        } catch (Exception e) {
+            log.error("Error al extender slots: {}", e.getMessage(), e);
+        }
     }
 
     /**

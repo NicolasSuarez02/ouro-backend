@@ -18,12 +18,14 @@ import java.time.ZoneId;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class AvailabilityService {
 
     private static final ZoneId ART = ZoneId.of("America/Argentina/Buenos_Aires");
+    private static final int SLOT_HORIZON_DAYS = 60;
 
     private final AvailabilityRepository availabilityRepository;
     private final TimeSlotRepository timeSlotRepository;
@@ -51,15 +53,12 @@ public class AvailabilityService {
         Therapist therapist = therapistRepository.findById(therapistId)
                 .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado con id: " + therapistId));
 
-        // Verificar que el userId corresponde al terapeuta
         if (!therapist.getUser().getId().equals(userId)) {
             throw new RuntimeException("No tenés permiso para modificar la disponibilidad de este terapeuta");
         }
 
-        // Borrar disponibilidad existente
         availabilityRepository.deleteByTherapistId(therapistId);
 
-        // Borrar time slots futuros FREE (los RESERVED no se tocan)
         timeSlotRepository.deleteByTherapistIdAndStatusAndStartAtAfter(
                 therapistId, TimeSlot.SlotStatus.FREE, LocalDateTime.now(ART));
 
@@ -67,7 +66,6 @@ public class AvailabilityService {
             return new ArrayList<>();
         }
 
-        // Guardar nueva disponibilidad
         List<Availability> saved = new ArrayList<>();
         for (AvailabilityDTO.SlotRequest slotReq : request.getSlots()) {
             Availability avail = new Availability();
@@ -80,8 +78,8 @@ public class AvailabilityService {
             saved.add(availabilityRepository.save(avail));
         }
 
-        // Generar time slots para los próximos 60 días
-        generateTimeSlots(therapist, saved);
+        LocalDate today = LocalDate.now(ART);
+        generateTimeSlots(therapist, saved, today, today.plusDays(SLOT_HORIZON_DAYS));
 
         return saved.stream()
                 .map(AvailabilityDTO.AvailabilityResponse::new)
@@ -96,14 +94,35 @@ public class AvailabilityService {
     }
 
     /**
-     * Genera time slots para los próximos 60 días en base a la disponibilidad configurada.
+     * Extiende los slots FREE de todos los terapeutas aprobados hasta hoy+60 días.
+     * Llamado por el scheduler diario — solo genera los días que aún no tienen slots.
      */
-    private void generateTimeSlots(Therapist therapist, List<Availability> availabilities) {
-        LocalDate today = LocalDate.now();
-        LocalDate end = today.plusDays(60);
+    @Transactional
+    public void extendSlotsForAllTherapists() {
+        LocalDate today = LocalDate.now(ART);
+        LocalDate horizon = today.plusDays(SLOT_HORIZON_DAYS);
+
+        List<Therapist> therapists = therapistRepository.findByApprovalStatus(Therapist.ApprovalStatus.APPROVED);
+        for (Therapist therapist : therapists) {
+            List<Availability> availabilities = availabilityRepository.findByTherapistId(therapist.getId());
+            if (availabilities.isEmpty()) continue;
+
+            Optional<LocalDateTime> maxFree = timeSlotRepository.findMaxFreeSlotStartAt(therapist.getId());
+            LocalDate startFrom = maxFree
+                    .map(dt -> dt.toLocalDate().plusDays(1))
+                    .orElse(today);
+
+            if (!startFrom.isAfter(horizon)) {
+                generateTimeSlots(therapist, availabilities, startFrom, horizon);
+            }
+        }
+    }
+
+    private void generateTimeSlots(Therapist therapist, List<Availability> availabilities,
+                                   LocalDate from, LocalDate to) {
         List<TimeSlot> slots = new ArrayList<>();
 
-        for (LocalDate date = today; !date.isAfter(end); date = date.plusDays(1)) {
+        for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
             int dbDayOfWeek = convertDayOfWeekToDb(date.getDayOfWeek());
 
             for (Availability avail : availabilities) {
@@ -126,12 +145,11 @@ public class AvailabilityService {
             }
         }
 
-        timeSlotRepository.saveAll(slots);
+        if (!slots.isEmpty()) {
+            timeSlotRepository.saveAll(slots);
+        }
     }
 
-    /**
-     * Convierte DayOfWeek de Java a la convención DB (0=Domingo, 1=Lunes, ..., 6=Sábado).
-     */
     private int convertDayOfWeekToDb(DayOfWeek dayOfWeek) {
         if (dayOfWeek == DayOfWeek.SUNDAY) return 0;
         return dayOfWeek.getValue(); // MONDAY=1 ... SATURDAY=6
