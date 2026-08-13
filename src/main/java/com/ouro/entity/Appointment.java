@@ -59,6 +59,12 @@ public class Appointment {
     @Column(name = "specialty_name", length = 255)
     private String specialtyName;
 
+    @Column(name = "google_event_id_therapist")
+    private String googleEventIdTherapist;
+
+    @Column(name = "google_event_id_client")
+    private String googleEventIdClient;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -200,6 +206,22 @@ public class Appointment {
 
     public void setSpecialtyName(String specialtyName) {
         this.specialtyName = specialtyName;
+    }
+
+    public String getGoogleEventIdTherapist() {
+        return googleEventIdTherapist;
+    }
+
+    public void setGoogleEventIdTherapist(String googleEventIdTherapist) {
+        this.googleEventIdTherapist = googleEventIdTherapist;
+    }
+
+    public String getGoogleEventIdClient() {
+        return googleEventIdClient;
+    }
+
+    public void setGoogleEventIdClient(String googleEventIdClient) {
+        this.googleEventIdClient = googleEventIdClient;
     }
 
     public LocalDateTime getUpdatedAt() {

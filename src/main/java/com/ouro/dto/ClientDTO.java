@@ -86,11 +86,12 @@ public class ClientDTO {
         private String userPhone;
         private String dateOfBirth;
         private String timeOfBirth;
-        
+        private boolean googleCalendarConnected;
+
         // Constructors
         public ClientResponse() {
         }
-        
+
         public ClientResponse(Client client) {
             this.id = client.getId();
             this.userId = client.getUser().getId();
@@ -99,6 +100,7 @@ public class ClientDTO {
             this.userPhone = client.getUser().getPhone();
             this.dateOfBirth = client.getDateOfBirth() != null ? client.getDateOfBirth().toString() : null;
             this.timeOfBirth = client.getTimeOfBirth() != null ? client.getTimeOfBirth().toString() : null;
+            this.googleCalendarConnected = client.getUser().isGoogleCalendarConnected();
         }
         
         // Getters and Setters
@@ -141,21 +143,29 @@ public class ClientDTO {
         public void setUserPhone(String userPhone) {
             this.userPhone = userPhone;
         }
-        
+
         public String getDateOfBirth() {
             return dateOfBirth;
         }
-        
+
         public void setDateOfBirth(String dateOfBirth) {
             this.dateOfBirth = dateOfBirth;
         }
-        
+
         public String getTimeOfBirth() {
             return timeOfBirth;
         }
-        
+
         public void setTimeOfBirth(String timeOfBirth) {
             this.timeOfBirth = timeOfBirth;
+        }
+
+        public boolean isGoogleCalendarConnected() {
+            return googleCalendarConnected;
+        }
+
+        public void setGoogleCalendarConnected(boolean googleCalendarConnected) {
+            this.googleCalendarConnected = googleCalendarConnected;
         }
     }
 

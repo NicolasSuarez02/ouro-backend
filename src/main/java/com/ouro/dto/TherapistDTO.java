@@ -239,6 +239,7 @@ public class TherapistDTO {
         private String updatedAt;
         // true si el terapeuta ya configuró su token de MP (no devolvemos el token en claro)
         private boolean mpTokenConfigurado;
+        private boolean googleCalendarConnected;
         private Integer minBookingLeadHours;
         private String slug;
         private List<SpecialtyDTO> specialties;
@@ -265,6 +266,7 @@ public class TherapistDTO {
             this.createdAt = therapist.getCreatedAt() != null ? therapist.getCreatedAt().toString() : null;
             this.updatedAt = therapist.getUpdatedAt() != null ? therapist.getUpdatedAt().toString() : null;
             this.mpTokenConfigurado = therapist.getMpAccessToken() != null && !therapist.getMpAccessToken().isBlank();
+            this.googleCalendarConnected = therapist.getUser().isGoogleCalendarConnected();
             this.minBookingLeadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
             this.slug = therapist.getSlug();
             this.specialties = therapist.getSpecialties() != null
@@ -391,6 +393,14 @@ public class TherapistDTO {
 
         public void setMpTokenConfigurado(boolean mpTokenConfigurado) {
             this.mpTokenConfigurado = mpTokenConfigurado;
+        }
+
+        public boolean isGoogleCalendarConnected() {
+            return googleCalendarConnected;
+        }
+
+        public void setGoogleCalendarConnected(boolean googleCalendarConnected) {
+            this.googleCalendarConnected = googleCalendarConnected;
         }
 
         public Integer getMinBookingLeadHours() {

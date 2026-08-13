@@ -37,6 +37,7 @@ public class AppointmentService {
     private final PaymentService paymentService;
     private final ZoomService zoomService;
     private final EmailService emailService;
+    private final GoogleCalendarService googleCalendarService;
 
     private static final ZoneId ART = ZoneId.of("America/Argentina/Buenos_Aires");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -49,7 +50,8 @@ public class AppointmentService {
                               UserRepository userRepository,
                               PaymentService paymentService,
                               ZoomService zoomService,
-                              EmailService emailService) {
+                              EmailService emailService,
+                              GoogleCalendarService googleCalendarService) {
         this.appointmentRepository = appointmentRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.therapistRepository = therapistRepository;
@@ -57,6 +59,7 @@ public class AppointmentService {
         this.paymentService = paymentService;
         this.zoomService = zoomService;
         this.emailService = emailService;
+        this.googleCalendarService = googleCalendarService;
     }
 
     /**
@@ -170,6 +173,52 @@ public class AppointmentService {
         }
     }
 
+    /**
+     * Crea el evento del turno en el Google Calendar del terapeuta y del cliente, cada uno de
+     * forma independiente y solo si conectaron su cuenta (GoogleCalendarService ya maneja el
+     * caso "no conectado" devolviendo vacío sin lanzar excepción).
+     */
+    private void syncGoogleCalendarForNewAppointment(Appointment appointment) {
+        try {
+            googleCalendarService.createEvent(appointment.getTherapist().getUser(), appointment, true)
+                    .ifPresent(appointment::setGoogleEventIdTherapist);
+            googleCalendarService.createEvent(appointment.getUser(), appointment, false)
+                    .ifPresent(appointment::setGoogleEventIdClient);
+
+            appointmentRepository.save(appointment);
+        } catch (Exception e) {
+            log.error("Error sincronizando Google Calendar para turno {}: {}", appointment.getId(), e.getMessage());
+        }
+    }
+
+    private void deleteGoogleCalendarEvents(Appointment appointment) {
+        try {
+            if (appointment.getGoogleEventIdTherapist() != null) {
+                googleCalendarService.deleteEvent(appointment.getTherapist().getUser(), appointment.getGoogleEventIdTherapist());
+            }
+            if (appointment.getGoogleEventIdClient() != null) {
+                googleCalendarService.deleteEvent(appointment.getUser(), appointment.getGoogleEventIdClient());
+            }
+        } catch (Exception e) {
+            log.error("Error borrando eventos de Google Calendar para turno {}: {}", appointment.getId(), e.getMessage());
+        }
+    }
+
+    private void updateGoogleCalendarEvents(Appointment appointment) {
+        try {
+            if (appointment.getGoogleEventIdTherapist() != null) {
+                googleCalendarService.updateEventTime(appointment.getTherapist().getUser(),
+                        appointment.getGoogleEventIdTherapist(), appointment.getStartAt(), appointment.getEndAt());
+            }
+            if (appointment.getGoogleEventIdClient() != null) {
+                googleCalendarService.updateEventTime(appointment.getUser(),
+                        appointment.getGoogleEventIdClient(), appointment.getStartAt(), appointment.getEndAt());
+            }
+        } catch (Exception e) {
+            log.error("Error actualizando eventos de Google Calendar para turno {}: {}", appointment.getId(), e.getMessage());
+        }
+    }
+
     private int getLeadHours(com.ouro.entity.Therapist therapist, String specialtyName) {
         int defaultHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
         if (specialtyName == null || specialtyName.isBlank()) return defaultHours;
@@ -256,6 +305,8 @@ public class AppointmentService {
         slot.setAppointment(savedAppointment);
         timeSlotRepository.save(slot);
 
+        syncGoogleCalendarForNewAppointment(savedAppointment);
+
         return new AppointmentDTO.AppointmentResponse(savedAppointment);
     }
 
@@ -306,6 +357,7 @@ public class AppointmentService {
         timeSlotRepository.save(slot);
 
         notifyTherapistOfNewAppointment(saved);
+        syncGoogleCalendarForNewAppointment(saved);
         log.info("Appointment {} creado desde pago confirmado (slot {})", saved.getId(), slotId);
     }
 
@@ -328,6 +380,7 @@ public class AppointmentService {
 
         // Notificar al terapeuta con los datos del cliente
         notifyTherapistOfNewAppointment(saved);
+        syncGoogleCalendarForNewAppointment(saved);
 
         return new AppointmentDTO.AppointmentResponse(saved);
     }
@@ -382,6 +435,8 @@ public class AppointmentService {
             slot.setAppointment(null);
             timeSlotRepository.save(slot);
         });
+
+        deleteGoogleCalendarEvents(appointment);
 
         return new AppointmentDTO.AppointmentResponse(appointment);
     }
@@ -527,6 +582,8 @@ public class AppointmentService {
         newSlot.setStatus(TimeSlot.SlotStatus.RESERVED);
         newSlot.setAppointment(saved);
         timeSlotRepository.save(newSlot);
+
+        updateGoogleCalendarEvents(saved);
 
         log.info("Turno {} reprogramado al slot {} por terapeuta userId={}", appointmentId, newTimeSlotId, userId);
         return new AppointmentDTO.AppointmentResponse(saved);

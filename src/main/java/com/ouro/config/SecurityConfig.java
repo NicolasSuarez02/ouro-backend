@@ -61,6 +61,9 @@ public class SecurityConfig {
                 // ── Webhooks Mercado Pago: siempre públicos ───────
                 .requestMatchers("/api/payments/webhook", "/api/payments/webhook/**").permitAll()
 
+                // ── Callback OAuth Google Calendar: siempre público ───
+                .requestMatchers(HttpMethod.GET, "/api/google-calendar/callback").permitAll()
+
                 // ── Todo lo demás requiere autenticación ──────────
                 .anyRequest().authenticated()
             )

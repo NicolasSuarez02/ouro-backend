@@ -155,13 +155,14 @@ public class UserDTO {
         private String phone;
         private String role;
         private Boolean emailVerified;
+        private boolean googleCalendarConnected;
         private String createdAt;
         private String updatedAt;
-        
+
         // Constructors
         public UserResponse() {
         }
-        
+
         public UserResponse(User user) {
             this.id = user.getId();
             this.email = user.getEmail();
@@ -169,6 +170,7 @@ public class UserDTO {
             this.phone = user.getPhone();
             this.role = user.getRole().name();
             this.emailVerified = user.getEmailVerified();
+            this.googleCalendarConnected = user.isGoogleCalendarConnected();
             this.createdAt = user.getCreatedAt() != null ? user.getCreatedAt().toString() : null;
             this.updatedAt = user.getUpdatedAt() != null ? user.getUpdatedAt().toString() : null;
         }
@@ -221,7 +223,15 @@ public class UserDTO {
         public void setEmailVerified(Boolean emailVerified) {
             this.emailVerified = emailVerified;
         }
-        
+
+        public boolean isGoogleCalendarConnected() {
+            return googleCalendarConnected;
+        }
+
+        public void setGoogleCalendarConnected(boolean googleCalendarConnected) {
+            this.googleCalendarConnected = googleCalendarConnected;
+        }
+
         public String getCreatedAt() {
             return createdAt;
         }

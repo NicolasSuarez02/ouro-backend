@@ -1,5 +1,6 @@
 package com.ouro.entity;
 
+import com.ouro.security.AesEncryptionConverter;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -48,7 +49,18 @@ public class User {
     
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-    
+
+    @Convert(converter = AesEncryptionConverter.class)
+    @Column(name = "google_access_token", columnDefinition = "TEXT")
+    private String googleAccessToken;
+
+    @Convert(converter = AesEncryptionConverter.class)
+    @Column(name = "google_refresh_token", columnDefinition = "TEXT")
+    private String googleRefreshToken;
+
+    @Column(name = "google_token_expiry")
+    private LocalDateTime googleTokenExpiry;
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Therapist therapist;
     
@@ -197,8 +209,36 @@ public class User {
     public Client getClient() {
         return client;
     }
-    
+
     public void setClient(Client client) {
         this.client = client;
+    }
+
+    public String getGoogleAccessToken() {
+        return googleAccessToken;
+    }
+
+    public void setGoogleAccessToken(String googleAccessToken) {
+        this.googleAccessToken = googleAccessToken;
+    }
+
+    public String getGoogleRefreshToken() {
+        return googleRefreshToken;
+    }
+
+    public void setGoogleRefreshToken(String googleRefreshToken) {
+        this.googleRefreshToken = googleRefreshToken;
+    }
+
+    public LocalDateTime getGoogleTokenExpiry() {
+        return googleTokenExpiry;
+    }
+
+    public void setGoogleTokenExpiry(LocalDateTime googleTokenExpiry) {
+        this.googleTokenExpiry = googleTokenExpiry;
+    }
+
+    public boolean isGoogleCalendarConnected() {
+        return googleAccessToken != null && !googleAccessToken.isBlank();
     }
 }
