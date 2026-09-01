@@ -26,9 +26,7 @@ public class UserDTO {
         @NotBlank(message = "Contraseña es requerida")
         @Size(min = 6, message = "Contraseña debe tener al menos 6 caracteres")
         private String password;
-        
-        private User.Role role;
-        
+
         // Constructors
         public CreateUserRequest() {
         }
@@ -72,16 +70,8 @@ public class UserDTO {
         public void setPassword(String password) {
             this.password = password;
         }
-        
-        public User.Role getRole() {
-            return role;
-        }
-        
-        public void setRole(User.Role role) {
-            this.role = role;
-        }
     }
-    
+
     // Request DTO para actualizar usuario
     public static class UpdateUserRequest {
         

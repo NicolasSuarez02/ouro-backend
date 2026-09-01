@@ -75,11 +75,7 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setPhone(request.getPhone());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        
-        if (request.getRole() != null) {
-            user.setRole(request.getRole());
-        }
-        
+
         // Generar token de verificación
         String verificationToken = UUID.randomUUID().toString();
         user.setVerificationToken(verificationToken);
