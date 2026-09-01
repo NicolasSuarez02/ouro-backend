@@ -173,6 +173,43 @@ public class AppointmentService {
         }
     }
 
+    private void notifyClientOfNewAppointment(Appointment appointment) {
+        try {
+            String appointmentDate = appointment.getStartAt().atZone(ART).format(DATE_FMT);
+            String appointmentTime = appointment.getStartAt().atZone(ART).format(TIME_FMT);
+
+            emailService.sendAppointmentConfirmationToClient(
+                    appointment.getUser().getEmail(),
+                    appointment.getUser().getFullName(),
+                    appointment.getTherapist().getUser().getFullName(),
+                    appointmentDate,
+                    appointmentTime,
+                    appointment.getSpecialtyName()
+            );
+        } catch (Exception e) {
+            log.error("Error al notificar al cliente sobre turno {}: {}", appointment.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyClientOfReschedule(LocalDateTime oldStartAt, Appointment appointment) {
+        try {
+            String oldDate = oldStartAt.atZone(ART).format(DATE_FMT);
+            String oldTime = oldStartAt.atZone(ART).format(TIME_FMT);
+            String newDate = appointment.getStartAt().atZone(ART).format(DATE_FMT);
+            String newTime = appointment.getStartAt().atZone(ART).format(TIME_FMT);
+
+            emailService.sendAppointmentRescheduledToClient(
+                    appointment.getUser().getEmail(),
+                    appointment.getUser().getFullName(),
+                    appointment.getTherapist().getUser().getFullName(),
+                    oldDate, oldTime, newDate, newTime,
+                    appointment.getSpecialtyName()
+            );
+        } catch (Exception e) {
+            log.error("Error al notificar al cliente sobre reprogramación del turno {}: {}", appointment.getId(), e.getMessage());
+        }
+    }
+
     /**
      * Crea el evento del turno en el Google Calendar del terapeuta y del cliente, cada uno de
      * forma independiente y solo si conectaron su cuenta (GoogleCalendarService ya maneja el
@@ -306,6 +343,7 @@ public class AppointmentService {
         timeSlotRepository.save(slot);
 
         syncGoogleCalendarForNewAppointment(savedAppointment);
+        notifyClientOfNewAppointment(savedAppointment);
 
         return new AppointmentDTO.AppointmentResponse(savedAppointment);
     }
@@ -357,6 +395,7 @@ public class AppointmentService {
         timeSlotRepository.save(slot);
 
         notifyTherapistOfNewAppointment(saved);
+        notifyClientOfNewAppointment(saved);
         syncGoogleCalendarForNewAppointment(saved);
         log.info("Appointment {} creado desde pago confirmado (slot {})", saved.getId(), slotId);
     }
@@ -380,6 +419,7 @@ public class AppointmentService {
 
         // Notificar al terapeuta con los datos del cliente
         notifyTherapistOfNewAppointment(saved);
+        notifyClientOfNewAppointment(saved);
         syncGoogleCalendarForNewAppointment(saved);
 
         return new AppointmentDTO.AppointmentResponse(saved);
@@ -570,6 +610,7 @@ public class AppointmentService {
         });
 
         // Actualizar turno con nueva fecha/hora y limpiar Zoom (se crea al iniciar sesión)
+        LocalDateTime oldStartAt = appointment.getStartAt();
         appointment.setStartAt(newSlot.getStartAt());
         appointment.setEndAt(newSlot.getEndAt());
         appointment.setZoomMeetingId(null);
@@ -584,9 +625,84 @@ public class AppointmentService {
         timeSlotRepository.save(newSlot);
 
         updateGoogleCalendarEvents(saved);
+        notifyClientOfReschedule(oldStartAt, saved);
 
         log.info("Turno {} reprogramado al slot {} por terapeuta userId={}", appointmentId, newTimeSlotId, userId);
         return new AppointmentDTO.AppointmentResponse(saved);
+    }
+
+    /**
+     * El terapeuta genera un turno nuevo con el mismo cliente a partir de un turno que fue
+     * cancelado por error. El turno cancelado NO se modifica (queda como historial); se crea
+     * un Appointment nuevo, sin pago, directamente en estado RESERVED.
+     */
+    @Transactional
+    public AppointmentDTO.AppointmentResponse rebookCancelledAppointment(Integer cancelledAppointmentId, Integer newTimeSlotId, Integer userId) {
+        Appointment cancelled = appointmentRepository.findById(cancelledAppointmentId)
+                .orElseThrow(() -> new RuntimeException("Turno no encontrado"));
+
+        boolean isTherapist = cancelled.getTherapist().getUser().getId().equals(userId);
+        if (!isTherapist) {
+            throw new RuntimeException("Solo el terapeuta puede reprogramar el turno");
+        }
+
+        if (cancelled.getStatus() != Appointment.AppointmentStatus.CANCELLED) {
+            throw new RuntimeException("Solo se pueden reprogramar turnos cancelados");
+        }
+
+        TimeSlot newSlot = timeSlotRepository.findByIdForUpdate(newTimeSlotId)
+                .orElseThrow(() -> new RuntimeException("El slot seleccionado no existe"));
+
+        if (newSlot.getStatus() != TimeSlot.SlotStatus.FREE) {
+            throw new RuntimeException("El horario seleccionado ya no está disponible");
+        }
+
+        if (!newSlot.getTherapist().getId().equals(cancelled.getTherapist().getId())) {
+            throw new RuntimeException("El slot no pertenece a tu agenda");
+        }
+
+        Appointment appointment = new Appointment();
+        appointment.setTherapist(cancelled.getTherapist());
+        appointment.setUser(cancelled.getUser());
+        appointment.setStartAt(newSlot.getStartAt());
+        appointment.setEndAt(newSlot.getEndAt());
+        appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
+        appointment.setPriceAmountCents(cancelled.getPriceAmountCents());
+        appointment.setCurrency(cancelled.getCurrency());
+        appointment.setSpecialtyName(cancelled.getSpecialtyName());
+        appointment.setNotes(cancelled.getNotes());
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        newSlot.setStatus(TimeSlot.SlotStatus.RESERVED);
+        newSlot.setAppointment(saved);
+        timeSlotRepository.save(newSlot);
+
+        syncGoogleCalendarForNewAppointment(saved);
+        notifyClientOfRebookedAppointment(cancelled, saved);
+
+        log.info("Turno {} generado a partir del cancelado {} por terapeuta userId={}", saved.getId(), cancelledAppointmentId, userId);
+        return new AppointmentDTO.AppointmentResponse(saved);
+    }
+
+    private void notifyClientOfRebookedAppointment(Appointment cancelled, Appointment saved) {
+        try {
+            String oldDate = cancelled.getStartAt().atZone(ART).format(DATE_FMT);
+            String oldTime = cancelled.getStartAt().atZone(ART).format(TIME_FMT);
+            String newDate = saved.getStartAt().atZone(ART).format(DATE_FMT);
+            String newTime = saved.getStartAt().atZone(ART).format(TIME_FMT);
+
+            emailService.sendAppointmentRescheduledToClient(
+                    saved.getUser().getEmail(),
+                    saved.getUser().getFullName(),
+                    saved.getTherapist().getUser().getFullName(),
+                    oldDate, oldTime, newDate, newTime,
+                    saved.getSpecialtyName()
+            );
+        } catch (Exception e) {
+            log.error("Error al notificar al cliente sobre turno reprogramado {} (desde cancelado {}): {}",
+                    saved.getId(), cancelled.getId(), e.getMessage());
+        }
     }
 
     /**

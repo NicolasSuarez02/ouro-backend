@@ -132,6 +132,23 @@ public class AppointmentController {
         }
     }
 
+    /** Genera un turno nuevo a partir de uno cancelado, con el mismo cliente — solo el terapeuta del turno. */
+    @PutMapping("/{id}/rebook")
+    public ResponseEntity<Object> rebookCancelledAppointment(@PathVariable Integer id,
+            @Valid @RequestBody AppointmentDTO.RescheduleRequest request) {
+        try {
+            Integer userId = currentUserId();
+            AppointmentDTO.AppointmentResponse response =
+                    appointmentService.rebookCancelledAppointment(id, request.getNewTimeSlotId(), userId);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     /** Cancela un turno — solo el usuario o el terapeuta del turno. */
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Object> cancelAppointment(@PathVariable Integer id) {

@@ -239,6 +239,89 @@ public class EmailService {
         return send(recipientEmail, subject, body, null);
     }
 
+    public void sendAppointmentConfirmationToClient(
+            String clientEmail,
+            String clientName,
+            String therapistName,
+            String appointmentDate,
+            String appointmentTime,
+            String specialtyName) {
+
+        String subject = "Tu turno fue confirmado – " + therapistName;
+        String body = String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #4A90E2;">¡Tu turno fue confirmado!</h2>
+                    <p>Hola %s, te confirmamos tu turno con %s.</p>
+                    <h3 style="color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px;">Datos del turno</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li><strong>Fecha:</strong> %s</li>
+                        <li><strong>Hora:</strong> %s hs</li>
+                        %s
+                    </ul>
+                    <p style="margin-top: 20px; color: #555;">Vas a poder unirte a la videollamada desde tu panel en
+                        <a href="https://www.ouro.com.ar/mis-turnos">ouro.com.ar/mis-turnos</a> poco antes del horario.
+                    </p>
+                    <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+                    <p style="font-size: 12px; color: #999; text-align: center;">Ouro – Tu bienestar es nuestra prioridad</p>
+                </div>
+            </body>
+            </html>
+            """,
+                clientName, therapistName, appointmentDate, appointmentTime,
+                (specialtyName != null && !specialtyName.isBlank())
+                        ? "<li><strong>Tipo de sesión:</strong> " + specialtyName + "</li>"
+                        : ""
+        );
+        send(clientEmail, subject, body, null);
+    }
+
+    public void sendAppointmentRescheduledToClient(
+            String clientEmail,
+            String clientName,
+            String therapistName,
+            String oldDate,
+            String oldTime,
+            String newDate,
+            String newTime,
+            String specialtyName) {
+
+        String subject = "Tu turno fue reprogramado – " + therapistName;
+        String body = String.format("""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #4A90E2;">Tu turno fue reprogramado</h2>
+                    <p>Hola %s, %s reprogramó tu turno a un nuevo horario.</p>
+                    <h3 style="color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px;">Horario anterior</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li><strong>Fecha:</strong> %s</li>
+                        <li><strong>Hora:</strong> %s hs</li>
+                    </ul>
+                    <h3 style="color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top: 20px;">Nuevo horario</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li><strong>Fecha:</strong> %s</li>
+                        <li><strong>Hora:</strong> %s hs</li>
+                        %s
+                    </ul>
+                    <p style="margin-top: 20px; color: #555;">Podés ver todos los detalles desde tu panel en
+                        <a href="https://www.ouro.com.ar/mis-turnos">ouro.com.ar/mis-turnos</a>.
+                    </p>
+                    <hr style="margin-top: 30px; border: none; border-top: 1px solid #ddd;">
+                    <p style="font-size: 12px; color: #999; text-align: center;">Ouro – Tu bienestar es nuestra prioridad</p>
+                </div>
+            </body>
+            </html>
+            """,
+                clientName, therapistName, oldDate, oldTime, newDate, newTime,
+                (specialtyName != null && !specialtyName.isBlank())
+                        ? "<li><strong>Tipo de sesión:</strong> " + specialtyName + "</li>"
+                        : ""
+        );
+        send(clientEmail, subject, body, null);
+    }
+
     private EmailDTO.EmailResponse send(String to, String subject, String html, String text) {
         if (resend == null) {
             log.warn("Email no enviado (Resend no configurado): to={} subject={}", to, subject);
