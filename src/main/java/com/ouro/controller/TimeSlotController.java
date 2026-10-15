@@ -34,7 +34,7 @@ public class TimeSlotController {
     }
 
     /**
-     * Devuelve los slots FREE próximos del terapeuta (60 días).
+     * Devuelve los slots FREE y BLOCKED (cancelados, restaurables) próximos del terapeuta (60 días).
      * Solo puede consultarlos el propio terapeuta (validado contra JWT).
      */
     @GetMapping("/therapist/{therapistId}")
@@ -52,8 +52,10 @@ public class TimeSlotController {
             LocalDateTime hasta = desde.plusDays(60);
 
             List<TimeSlot> slots = timeSlotRepository
-                    .findByTherapistIdAndStatusAndStartAtBetween(
-                            therapistId, TimeSlot.SlotStatus.FREE, desde, hasta);
+                    .findByTherapistIdAndStatusInAndStartAtBetween(
+                            therapistId,
+                            List.of(TimeSlot.SlotStatus.FREE, TimeSlot.SlotStatus.BLOCKED),
+                            desde, hasta);
 
             List<Map<String, Object>> response = slots.stream()
                     .sorted((a, b) -> a.getStartAt().compareTo(b.getStartAt()))
@@ -77,7 +79,7 @@ public class TimeSlotController {
     }
 
     /**
-     * Cancela (elimina) un slot FREE.
+     * Cancela un slot FREE: queda BLOCKED (no reservable) para poder restaurarlo después.
      * Solo puede hacerlo el terapeuta dueño (validado contra JWT).
      */
     @DeleteMapping("/{slotId}")
@@ -95,7 +97,50 @@ public class TimeSlotController {
                 throw new RuntimeException("Solo se pueden cancelar turnos libres. Este turno ya está reservado.");
             }
 
-            timeSlotRepository.deleteById(slotId);
+            slot.setStatus(TimeSlot.SlotStatus.BLOCKED);
+            timeSlotRepository.save(slot);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * Restaura un slot cancelado (BLOCKED → FREE).
+     * Solo puede hacerlo el terapeuta dueño (validado contra JWT).
+     */
+    @PutMapping("/{slotId}/restore")
+    public ResponseEntity<Object> restoreSlot(@PathVariable Integer slotId) {
+        try {
+            Integer userId = currentUserId();
+            TimeSlot slot = timeSlotRepository.findById(slotId)
+                    .orElseThrow(() -> new RuntimeException("Turno no encontrado"));
+
+            if (!slot.getTherapist().getUser().getId().equals(userId)) {
+                throw new RuntimeException("No tenés permiso para restaurar este turno");
+            }
+
+            if (slot.getStatus() != TimeSlot.SlotStatus.BLOCKED) {
+                throw new RuntimeException("Este turno no está cancelado.");
+            }
+
+            if (!slot.getStartAt().isAfter(LocalDateTime.now(ART))) {
+                throw new RuntimeException("No se puede restaurar un turno que ya pasó.");
+            }
+
+            boolean overlaps = timeSlotRepository
+                    .findOverlapping(slot.getTherapist().getId(), slot.getStartAt(), slot.getEndAt())
+                    .stream()
+                    .anyMatch(other -> !other.getId().equals(slot.getId()));
+            if (overlaps) {
+                throw new RuntimeException("Ya hay otro turno en ese horario.");
+            }
+
+            slot.setStatus(TimeSlot.SlotStatus.FREE);
+            timeSlotRepository.save(slot);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } catch (RuntimeException e) {
             Map<String, Object> error = new HashMap<>();

@@ -22,6 +22,17 @@ public interface TimeSlotRepository extends JpaRepository<TimeSlot, Integer> {
     List<TimeSlot> findByTherapistIdAndStatusAndStartAtBetween(
             Integer therapistId, TimeSlot.SlotStatus status, LocalDateTime from, LocalDateTime to);
 
+    List<TimeSlot> findByTherapistIdAndStatusInAndStartAtBetween(
+            Integer therapistId, List<TimeSlot.SlotStatus> statuses, LocalDateTime from, LocalDateTime to);
+
+    List<TimeSlot> findByTherapistIdAndStatusAndStartAtAfter(
+            Integer therapistId, TimeSlot.SlotStatus status, LocalDateTime after);
+
+    @Query("SELECT s FROM TimeSlot s WHERE s.therapist.id = :therapistId AND s.endAt > :from AND s.startAt < :to")
+    List<TimeSlot> findOverlapping(@Param("therapistId") Integer therapistId,
+                                   @Param("from") LocalDateTime from,
+                                   @Param("to") LocalDateTime to);
+
     void deleteByTherapistIdAndStatusAndStartAtAfter(
             Integer therapistId, TimeSlot.SlotStatus status, LocalDateTime after);
 

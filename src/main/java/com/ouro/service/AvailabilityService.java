@@ -19,6 +19,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -79,7 +80,20 @@ public class AvailabilityService {
         }
 
         LocalDate today = LocalDate.now(ART);
-        generateTimeSlots(therapist, saved, today, today.plusDays(SLOT_HORIZON_DAYS));
+        LocalDate horizon = today.plusDays(SLOT_HORIZON_DAYS);
+
+        // Los slots que el terapeuta canceló (BLOCKED) se conservan si siguen
+        // coincidiendo con la nueva plantilla; los que ya no encajan se descartan.
+        List<TimeSlot> candidates = buildCandidateSlots(therapist, saved, today, horizon);
+        Set<String> candidateKeys = candidates.stream().map(this::slotKey).collect(Collectors.toSet());
+        List<TimeSlot> staleBlocked = timeSlotRepository
+                .findByTherapistIdAndStatusAndStartAtAfter(therapistId, TimeSlot.SlotStatus.BLOCKED, LocalDateTime.now(ART))
+                .stream()
+                .filter(slot -> !candidateKeys.contains(slotKey(slot)))
+                .collect(Collectors.toList());
+        timeSlotRepository.deleteAll(staleBlocked);
+
+        saveWithoutOverlaps(therapist, candidates, today, horizon);
 
         return saved.stream()
                 .map(AvailabilityDTO.AvailabilityResponse::new)
@@ -120,6 +134,36 @@ public class AvailabilityService {
 
     private void generateTimeSlots(Therapist therapist, List<Availability> availabilities,
                                    LocalDate from, LocalDate to) {
+        saveWithoutOverlaps(therapist, buildCandidateSlots(therapist, availabilities, from, to), from, to);
+    }
+
+    /**
+     * Guarda los slots candidatos salvo los que se superponen con uno ya existente
+     * (reservado, cancelado por el terapeuta o libre), para no duplicar horarios.
+     */
+    private void saveWithoutOverlaps(Therapist therapist, List<TimeSlot> candidates,
+                                     LocalDate from, LocalDate to) {
+        if (candidates.isEmpty()) return;
+
+        List<TimeSlot> existing = timeSlotRepository.findOverlapping(
+                therapist.getId(), from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+
+        List<TimeSlot> toSave = candidates.stream()
+                .filter(c -> existing.stream().noneMatch(e ->
+                        e.getStartAt().isBefore(c.getEndAt()) && e.getEndAt().isAfter(c.getStartAt())))
+                .collect(Collectors.toList());
+
+        if (!toSave.isEmpty()) {
+            timeSlotRepository.saveAll(toSave);
+        }
+    }
+
+    private String slotKey(TimeSlot slot) {
+        return slot.getStartAt() + "|" + slot.getEndAt();
+    }
+
+    private List<TimeSlot> buildCandidateSlots(Therapist therapist, List<Availability> availabilities,
+                                               LocalDate from, LocalDate to) {
         List<TimeSlot> slots = new ArrayList<>();
 
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
@@ -145,9 +189,7 @@ public class AvailabilityService {
             }
         }
 
-        if (!slots.isEmpty()) {
-            timeSlotRepository.saveAll(slots);
-        }
+        return slots;
     }
 
     private int convertDayOfWeekToDb(DayOfWeek dayOfWeek) {

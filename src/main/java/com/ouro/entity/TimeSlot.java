@@ -9,7 +9,9 @@ import java.time.ZoneOffset;
 public class TimeSlot {
 
     public enum SlotStatus {
-        FREE, RESERVED
+        FREE, RESERVED,
+        // Cancelado por el terapeuta: no se puede reservar, pero se puede restaurar
+        BLOCKED
     }
 
     @Id
