@@ -131,6 +131,21 @@ public class TherapistController {
     }
 
     /**
+     * PUT /api/therapists/me/accept-guidelines — el terapeuta logueado acepta las pautas de convivencia.
+     */
+    @PutMapping("/me/accept-guidelines")
+    public ResponseEntity<Object> acceptGuidelines() {
+        try {
+            return ResponseEntity.ok(therapistService.acceptGuidelines(currentUserId()));
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
      * POST /api/therapists/{id}/provision-zoom — crea usuario Zoom para un terapeuta existente. Solo ADMIN.
      */
     @PostMapping("/{id}/provision-zoom")

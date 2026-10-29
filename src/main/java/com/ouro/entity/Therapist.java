@@ -58,6 +58,9 @@ public class Therapist {
     @Column(name = "zoom_user_id", length = 100)
     private String zoomUserId;
 
+    @Column(name = "guidelines_accepted_at")
+    private LocalDateTime guidelinesAcceptedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -194,6 +197,14 @@ public class Therapist {
 
     public void setZoomUserId(String zoomUserId) {
         this.zoomUserId = zoomUserId;
+    }
+
+    public LocalDateTime getGuidelinesAcceptedAt() {
+        return guidelinesAcceptedAt;
+    }
+
+    public void setGuidelinesAcceptedAt(LocalDateTime guidelinesAcceptedAt) {
+        this.guidelinesAcceptedAt = guidelinesAcceptedAt;
     }
 
     public List<TherapistSpecialty> getSpecialties() {

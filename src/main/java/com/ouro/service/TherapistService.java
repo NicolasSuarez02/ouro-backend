@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.text.Normalizer;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -257,6 +259,21 @@ public class TherapistService {
         return therapistRepository.findBySpecialty(specialty).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * El terapeuta logueado acepta las pautas de convivencia de Ouro.
+     * Se guarda la fecha de la primera aceptación; llamadas repetidas no la pisan.
+     */
+    @Transactional
+    public TherapistDTO.TherapistResponse acceptGuidelines(Integer userId) {
+        Therapist therapist = therapistRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado para el usuario actual"));
+        if (therapist.getGuidelinesAcceptedAt() == null) {
+            therapist.setGuidelinesAcceptedAt(LocalDateTime.now(ZoneOffset.UTC));
+            therapist = therapistRepository.save(therapist);
+        }
+        return toResponse(therapist);
     }
 
     @Transactional
