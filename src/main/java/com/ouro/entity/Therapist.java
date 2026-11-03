@@ -61,6 +61,13 @@ public class Therapist {
     @Column(name = "guidelines_accepted_at")
     private LocalDateTime guidelinesAcceptedAt;
 
+    // Email de la cuenta PayPal donde cobra; NULL = PayPal no conectado
+    @Column(name = "paypal_email", length = 255)
+    private String paypalEmail;
+
+    @Column(name = "paypal_connected_at")
+    private LocalDateTime paypalConnectedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -213,5 +220,25 @@ public class Therapist {
 
     public void setSpecialties(List<TherapistSpecialty> specialties) {
         this.specialties = specialties;
+    }
+
+    public String getPaypalEmail() {
+        return paypalEmail;
+    }
+
+    public void setPaypalEmail(String paypalEmail) {
+        this.paypalEmail = paypalEmail;
+    }
+
+    public LocalDateTime getPaypalConnectedAt() {
+        return paypalConnectedAt;
+    }
+
+    public void setPaypalConnectedAt(LocalDateTime paypalConnectedAt) {
+        this.paypalConnectedAt = paypalConnectedAt;
+    }
+
+    public boolean isPaypalConnected() {
+        return paypalEmail != null && !paypalEmail.isBlank();
     }
 }

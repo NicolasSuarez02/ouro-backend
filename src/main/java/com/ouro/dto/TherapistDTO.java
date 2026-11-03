@@ -15,6 +15,8 @@ public class TherapistDTO {
         private String name;
         private Integer minBookingLeadHours;
         private Integer priceAmountCents;
+        // Precio en USD para PayPal; null = no se ofrece por PayPal
+        private Integer priceUsdCents;
 
         public SpecialtyDTO() {}
 
@@ -22,6 +24,7 @@ public class TherapistDTO {
             this.name = s.getName();
             this.minBookingLeadHours = s.getMinBookingLeadHours();
             this.priceAmountCents = s.getPriceAmountCents();
+            this.priceUsdCents = s.getPriceUsdCents();
         }
 
         public String getName() { return name; }
@@ -30,6 +33,21 @@ public class TherapistDTO {
         public void setMinBookingLeadHours(Integer minBookingLeadHours) { this.minBookingLeadHours = minBookingLeadHours; }
         public Integer getPriceAmountCents() { return priceAmountCents; }
         public void setPriceAmountCents(Integer priceAmountCents) { this.priceAmountCents = priceAmountCents; }
+        public Integer getPriceUsdCents() { return priceUsdCents; }
+        public void setPriceUsdCents(Integer priceUsdCents) { this.priceUsdCents = priceUsdCents; }
+    }
+
+    // Request para conectar PayPal: el email se pide dos veces para evitar errores de tipeo
+    public static class PayPalConnectRequest {
+        private String email;
+        private String emailConfirmation;
+
+        public PayPalConnectRequest() {}
+
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getEmailConfirmation() { return emailConfirmation; }
+        public void setEmailConfirmation(String emailConfirmation) { this.emailConfirmation = emailConfirmation; }
     }
     
     // Request DTO para crear terapeuta
@@ -241,6 +259,8 @@ public class TherapistDTO {
         private boolean mpTokenConfigurado;
         private boolean googleCalendarConnected;
         private boolean guidelinesAccepted;
+        // true si la terapeuta conectó PayPal (el email no sale en las respuestas públicas)
+        private boolean paypalConnected;
         private Integer minBookingLeadHours;
         private String slug;
         private List<SpecialtyDTO> specialties;
@@ -269,6 +289,7 @@ public class TherapistDTO {
             this.mpTokenConfigurado = therapist.getMpAccessToken() != null && !therapist.getMpAccessToken().isBlank();
             this.googleCalendarConnected = therapist.getUser().isGoogleCalendarConnected();
             this.guidelinesAccepted = therapist.getGuidelinesAcceptedAt() != null;
+            this.paypalConnected = therapist.isPaypalConnected();
             this.minBookingLeadHours = therapist.getMinBookingLeadHours() != null ? therapist.getMinBookingLeadHours() : 1;
             this.slug = therapist.getSlug();
             this.specialties = therapist.getSpecialties() != null
@@ -397,6 +418,12 @@ public class TherapistDTO {
             this.guidelinesAccepted = guidelinesAccepted;
         }
 
+        public boolean isPaypalConnected() {
+            return paypalConnected;
+        }
+        public void setPaypalConnected(boolean paypalConnected) {
+            this.paypalConnected = paypalConnected;
+        }
         public boolean isMpTokenConfigurado() {
             return mpTokenConfigurado;
         }

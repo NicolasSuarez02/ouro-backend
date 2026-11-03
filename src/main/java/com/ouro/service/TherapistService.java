@@ -143,6 +143,7 @@ public class TherapistService {
                 sp.setName(sd.getName());
                 sp.setMinBookingLeadHours(sd.getMinBookingLeadHours() != null ? sd.getMinBookingLeadHours() : 1);
                 sp.setPriceAmountCents(sd.getPriceAmountCents() != null ? sd.getPriceAmountCents() : 0);
+                sp.setPriceUsdCents(validUsdPrice(sd));
                 saved.getSpecialties().add(sp);
             }
         }
@@ -276,6 +277,68 @@ public class TherapistService {
         return toResponse(therapist);
     }
 
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$");
+
+    /** Email de PayPal de la terapeuta logueada (null si no conectó). Solo para ella misma. */
+    @Transactional(readOnly = true)
+    public String getMyPaypalEmail(Integer userId) {
+        Therapist therapist = therapistRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado para el usuario actual"));
+        return therapist.getPaypalEmail();
+    }
+
+    /**
+     * Conecta PayPal guardando el email de la cuenta donde cobra la terapeuta.
+     * Se pide dos veces porque PayPal acepta crear órdenes aunque el email no exista:
+     * un error de tipeo mandaría los cobros a otra cuenta.
+     */
+    @Transactional
+    public TherapistDTO.TherapistResponse connectPaypal(Integer userId, TherapistDTO.PayPalConnectRequest request) {
+        Therapist therapist = therapistRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado para el usuario actual"));
+
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+        String confirmation = request.getEmailConfirmation() != null
+                ? request.getEmailConfirmation().trim().toLowerCase() : "";
+
+        if (email.isEmpty()) {
+            throw new RuntimeException("Ingresá el email de tu cuenta de PayPal");
+        }
+        if (email.length() > 255 || !EMAIL_PATTERN.matcher(email).matches()) {
+            throw new RuntimeException("El email de PayPal no es válido");
+        }
+        if (!email.equals(confirmation)) {
+            throw new RuntimeException("Los dos emails no coinciden");
+        }
+
+        therapist.setPaypalEmail(email);
+        therapist.setPaypalConnectedAt(LocalDateTime.now(ZoneOffset.UTC));
+        log.info("Terapeuta {} conectó PayPal", therapist.getId());
+        return toResponse(therapistRepository.save(therapist));
+    }
+
+    /** Desconecta PayPal: sus especialidades dejan de ofrecerlo aunque conserven el precio en USD. */
+    @Transactional
+    public TherapistDTO.TherapistResponse disconnectPaypal(Integer userId) {
+        Therapist therapist = therapistRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Terapeuta no encontrado para el usuario actual"));
+        therapist.setPaypalEmail(null);
+        therapist.setPaypalConnectedAt(null);
+        log.info("Terapeuta {} desconectó PayPal", therapist.getId());
+        return toResponse(therapistRepository.save(therapist));
+    }
+
+    /** Precio en USD de una especialidad: vacío o 0 = sin PayPal; si viene, mínimo USD 1. */
+    private Integer validUsdPrice(TherapistDTO.SpecialtyDTO sd) {
+        Integer usd = sd.getPriceUsdCents();
+        if (usd == null || usd == 0) return null;
+        if (usd < 100) {
+            throw new RuntimeException("El precio en USD de \"" + sd.getName() + "\" debe ser de al menos USD 1");
+        }
+        return usd;
+    }
+
     @Transactional
     public TherapistDTO.TherapistResponse updateTherapist(Integer id, TherapistDTO.UpdateTherapistRequest request, Integer requestingUserId) {
         Therapist therapist = therapistRepository.findById(id)
@@ -307,6 +370,7 @@ public class TherapistService {
                 sp.setName(sd.getName());
                 sp.setMinBookingLeadHours(sd.getMinBookingLeadHours() != null ? sd.getMinBookingLeadHours() : 1);
                 sp.setPriceAmountCents(sd.getPriceAmountCents() != null ? sd.getPriceAmountCents() : 0);
+                sp.setPriceUsdCents(validUsdPrice(sd));
                 therapist.getSpecialties().add(sp);
             }
         }

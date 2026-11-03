@@ -263,6 +263,55 @@ public class TherapistController {
         }
     }
 
+    /**
+     * GET /api/therapists/me/paypal — email de PayPal de la terapeuta logueada.
+     * Las rutas GET de /api/therapists/** son públicas, así que se verifica el JWT acá.
+     */
+    @GetMapping("/me/paypal")
+    public ResponseEntity<Object> getMyPaypal() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication() != null
+                ? SecurityContextHolder.getContext().getAuthentication().getPrincipal() : null;
+        if (!(principal instanceof Integer userId)) {
+            return errorResponse("Iniciá sesión para ver tu cuenta de PayPal", HttpStatus.UNAUTHORIZED);
+        }
+        try {
+            String email = therapistService.getMyPaypalEmail(userId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("connected", email != null);
+            result.put("email", email);
+            return ResponseEntity.ok(result);
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /** PUT /api/therapists/me/paypal — conecta PayPal con email + confirmación. */
+    @PutMapping("/me/paypal")
+    public ResponseEntity<Object> connectPaypal(@RequestBody TherapistDTO.PayPalConnectRequest request) {
+        try {
+            return ResponseEntity.ok(therapistService.connectPaypal(currentUserId(), request));
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /** DELETE /api/therapists/me/paypal — desconecta PayPal. */
+    @DeleteMapping("/me/paypal")
+    public ResponseEntity<Object> disconnectPaypal() {
+        try {
+            return ResponseEntity.ok(therapistService.disconnectPaypal(currentUserId()));
+        } catch (RuntimeException e) {
+            return errorResponse(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private ResponseEntity<Object> errorResponse(String message, HttpStatus status) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
+        error.put("message", message);
+        return new ResponseEntity<>(error, status);
+    }
+
     private Integer currentUserId() {
         return (Integer) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }

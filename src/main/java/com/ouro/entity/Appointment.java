@@ -59,6 +59,16 @@ public class Appointment {
     @Column(name = "specialty_name", length = 255)
     private String specialtyName;
 
+    // MERCADOPAGO o PAYPAL; NULL en turnos gratis y en los anteriores a PayPal
+    @Column(name = "payment_provider", length = 16)
+    private String paymentProvider;
+
+    @Column(name = "paypal_order_id", length = 64, unique = true)
+    private String paypalOrderId;
+
+    @Column(name = "paypal_capture_id", length = 64)
+    private String paypalCaptureId;
+
     @Column(name = "google_event_id_therapist")
     private String googleEventIdTherapist;
 
@@ -230,5 +240,29 @@ public class Appointment {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPaymentProvider() {
+        return paymentProvider;
+    }
+
+    public void setPaymentProvider(String paymentProvider) {
+        this.paymentProvider = paymentProvider;
+    }
+
+    public String getPaypalOrderId() {
+        return paypalOrderId;
+    }
+
+    public void setPaypalOrderId(String paypalOrderId) {
+        this.paypalOrderId = paypalOrderId;
+    }
+
+    public String getPaypalCaptureId() {
+        return paypalCaptureId;
+    }
+
+    public void setPaypalCaptureId(String paypalCaptureId) {
+        this.paypalCaptureId = paypalCaptureId;
     }
 }

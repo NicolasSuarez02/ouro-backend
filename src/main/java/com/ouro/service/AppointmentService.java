@@ -379,14 +379,31 @@ public class AppointmentService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
 
+        Appointment saved = createPaidAppointment(slot, user, specialtyName, priceAmountCents, currency,
+                "MERCADOPAGO", null, null);
+        log.info("Appointment {} creado desde pago confirmado (slot {})", saved.getId(), slotId);
+    }
+
+    /**
+     * Crea el turno RESERVED de un pago confirmado, bloquea el horario y notifica.
+     * Lo usan Mercado Pago y PayPal. El que llama ya bloqueó el slot (findByIdForUpdate)
+     * y verificó que está FREE.
+     */
+    @Transactional
+    public Appointment createPaidAppointment(TimeSlot slot, User user, String specialtyName,
+                                             Integer amountCents, String currency, String provider,
+                                             String paypalOrderId, String notes) {
         Appointment appointment = new Appointment();
         appointment.setTherapist(slot.getTherapist());
         appointment.setUser(user);
         appointment.setStartAt(slot.getStartAt());
         appointment.setEndAt(slot.getEndAt());
         appointment.setStatus(Appointment.AppointmentStatus.RESERVED);
-        appointment.setPriceAmountCents(priceAmountCents);
+        appointment.setPriceAmountCents(amountCents);
         appointment.setCurrency(currency);
+        appointment.setPaymentProvider(provider);
+        appointment.setPaypalOrderId(paypalOrderId);
+        appointment.setNotes(notes);
         if (specialtyName != null) appointment.setSpecialtyName(specialtyName);
 
         Appointment saved = appointmentRepository.save(appointment);
@@ -397,7 +414,42 @@ public class AppointmentService {
         notifyTherapistOfNewAppointment(saved);
         notifyClientOfNewAppointment(saved);
         syncGoogleCalendarForNewAppointment(saved);
-        log.info("Appointment {} creado desde pago confirmado (slot {})", saved.getId(), slotId);
+        return saved;
+    }
+
+    /**
+     * Cancela un turno pagado cuyo cobro PayPal terminó rechazado (captura PENDING → DENIED)
+     * y libera el horario. No pide permisos: lo llama el webhook ya verificado.
+     */
+    @Transactional
+    public void cancelUnpaidAppointment(Integer appointmentId) {
+        appointmentRepository.findById(appointmentId).ifPresent(appointment -> {
+            if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) return;
+            appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+            appointmentRepository.save(appointment);
+            timeSlotRepository.findByAppointmentId(appointmentId).ifPresent(slot -> {
+                slot.setStatus(TimeSlot.SlotStatus.FREE);
+                slot.setAppointment(null);
+                timeSlotRepository.save(slot);
+            });
+            deleteGoogleCalendarEvents(appointment);
+        });
+    }
+
+    /** Precio y nombre de la especialidad elegida, con la misma regla que bookAppointment. */
+    public TherapistSpecialty resolveSpecialty(com.ouro.entity.Therapist therapist, String requestedName) {
+        List<TherapistSpecialty> specList = therapist.getSpecialties();
+        if (requestedName != null && !requestedName.isBlank()) {
+            return specList.stream()
+                    .filter(s -> s.getName().equalsIgnoreCase(requestedName))
+                    .findFirst()
+                    .orElse(null);
+        }
+        return specList.size() == 1 ? specList.get(0) : null;
+    }
+
+    public int leadHoursFor(com.ouro.entity.Therapist therapist, String specialtyName) {
+        return getLeadHours(therapist, specialtyName);
     }
 
     /**

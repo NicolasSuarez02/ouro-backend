@@ -23,6 +23,10 @@ public class TherapistSpecialty {
     @Column(name = "price_amount_cents", nullable = false)
     private Integer priceAmountCents = 0;
 
+    // Precio en USD para pagar con PayPal; NULL = la especialidad no se ofrece por PayPal
+    @Column(name = "price_usd_cents")
+    private Integer priceUsdCents;
+
     public TherapistSpecialty() {}
 
     public Integer getId() { return id; }
@@ -39,4 +43,7 @@ public class TherapistSpecialty {
 
     public Integer getPriceAmountCents() { return priceAmountCents; }
     public void setPriceAmountCents(Integer priceAmountCents) { this.priceAmountCents = priceAmountCents; }
+
+    public Integer getPriceUsdCents() { return priceUsdCents; }
+    public void setPriceUsdCents(Integer priceUsdCents) { this.priceUsdCents = priceUsdCents; }
 }

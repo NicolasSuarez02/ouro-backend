@@ -68,6 +68,7 @@ public class AppointmentDTO {
         private String status;
         private Integer priceAmountCents;
         private String currency;
+        private String paymentProvider;
         private String notes;
         private String specialtyName;
         private String createdAt;
@@ -94,6 +95,7 @@ public class AppointmentDTO {
             this.status = appointment.getStatus() != null ? appointment.getStatus().name() : null;
             this.priceAmountCents = appointment.getPriceAmountCents();
             this.currency = appointment.getCurrency();
+            this.paymentProvider = appointment.getPaymentProvider();
             this.notes = appointment.getNotes();
             this.createdAt = appointment.getCreatedAt() != null ? appointment.getCreatedAt().toString() : null;
             this.zoomMeetingId = appointment.getZoomMeetingId();
@@ -216,6 +218,9 @@ public class AppointmentDTO {
 
         public String getSpecialtyName() { return specialtyName; }
         public void setSpecialtyName(String specialtyName) { this.specialtyName = specialtyName; }
+
+        public String getPaymentProvider() { return paymentProvider; }
+        public void setPaymentProvider(String paymentProvider) { this.paymentProvider = paymentProvider; }
 
         public String getCreatedAt() {
             return createdAt;
