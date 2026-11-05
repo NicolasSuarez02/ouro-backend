@@ -37,13 +37,14 @@ public class PayPalController {
      * Body: timeSlotId, specialtyName, notes. Devuelve orderId y approveUrl (a donde redirigir).
      */
     @PostMapping("/api/appointments/paypal/order")
-    public ResponseEntity<Object> createOrder(@RequestBody AppointmentDTO.BookAppointmentRequest request) {
+    public ResponseEntity<Object> createOrder(@RequestBody AppointmentDTO.BookAppointmentRequest request,
+                                              @RequestHeader(value = "Origin", required = false) String origin) {
         try {
             if (request.getTimeSlotId() == null) {
                 return error("Elegí un horario", HttpStatus.BAD_REQUEST);
             }
             String[] order = checkoutService.createOrder(currentUserId(), request.getTimeSlotId(),
-                    request.getSpecialtyName(), request.getNotes());
+                    request.getSpecialtyName(), request.getNotes(), origin);
             Map<String, Object> result = new HashMap<>();
             result.put("orderId", order[0]);
             result.put("approveUrl", order[1]);

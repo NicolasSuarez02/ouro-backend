@@ -1,5 +1,7 @@
 package com.ouro.service;
 
+import com.ouro.config.CorsConfig;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ouro.dto.AppointmentDTO;
 import com.ouro.entity.*;
@@ -59,7 +61,7 @@ public class PayPalCheckoutService {
      * Crea la orden en PayPal para reservar un horario. Devuelve [orderId, approveUrl].
      * No bloquea el horario: se verifica de nuevo al cobrar.
      */
-    public String[] createOrder(Integer userId, Integer timeSlotId, String specialtyName, String notes) {
+    public String[] createOrder(Integer userId, Integer timeSlotId, String specialtyName, String notes, String origin) {
         if (!payPalClient.isConfigured()) {
             throw new RuntimeException("El pago con PayPal no está disponible en este momento");
         }
@@ -101,12 +103,13 @@ public class PayPalCheckoutService {
         checkout.setNotes(notes);
         checkout = checkoutRepository.save(checkout);
 
-        String base = frontendBase();
+        // Vuelve al mismo sitio desde donde se pagó (ej. una preview de Vercel), si es un origen permitido
+        String base = CorsConfig.isAllowedOrigin(origin) ? origin : frontendBase();
         String description = "Sesión de " + specialty.getName() + " con " + therapist.getUser().getFullName();
         try {
             String[] order = payPalClient.createOrder(checkout.getId(), checkout.getPayeeEmail(),
                     checkout.getAmountUsdCents(), description,
-                    base + "/pago/paypal/retorno", base + "/pago/fallido");
+                    base + "/pago/paypal/retorno", base + "/pago/paypal/cancelado");
             checkout.setPaypalOrderId(order[0]);
             checkoutRepository.save(checkout);
             log.info("Orden PayPal {} creada (checkout {}, slot {}, user {})",

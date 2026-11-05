@@ -21,8 +21,14 @@ public class CorsConfig extends OncePerRequestFilter {
             "https://www.ouro.com.ar",
             "https://ouro-frontend-seven.vercel.app",
             "https://ouro-frontend-nicolassuarez02s-projects.vercel.app",
+            // Preview de Vercel de la rama paypal (para probar antes de pasar a producción)
+            "https://ouro-frontend-git-paypal-nicolassuarez02s-projects.vercel.app",
             "http://localhost:3000"
     );
+
+    public static boolean isAllowedOrigin(String origin) {
+        return origin != null && ALLOWED_ORIGINS.contains(origin);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
